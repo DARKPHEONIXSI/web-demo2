@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block title %}{{ product['name'] }} — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container">
+    <div class="product-detail-grid">
+
+      <!-- Product Images -->
+      <div>
+        <div style="border:1px solid var(--isu-pale); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1rem;">
+          <img id="mainProductImage"
+            src="{{ images[0]['image_url'] if images else url_for('static', filename='images/pro_ice.png') }}"
+            class="product-detail-img">
+        </div>
+        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem;">
+          {% for img in images %}
+          <img src="{{ img['image_url'] }}" class="thumbnail-img" data-color="{{ img['color_match'] }}"
+            onclick="setMainImage(this.src)"
+            style="width: 80px; height: 80px; object-fit: cover; border-radius: var(--radius); cursor: pointer; border: 2px solid var(--isu-pale); transition: border-color 0.2s;">
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Product Info -->
+      <div class="product-detail-info">
+        <h1 class="product-detail-name">{{ product['name'] }}</h1>
+        <div id="productPrice" class="product-detail-price">₹{{ product['base_price'] }}</div>
+
+        <div class="product-detail-desc">
+          {{ product['description']|safe }}
+        </div>
+
+        {% if variants %}
+        <!-- Variant Selectors -->
+        <div style="margin-bottom: 2rem;">
+
+          <!-- Color Selector -->
+          {% set colors = [] %}
+          {% for v in variants %}
+          {% if v['color'] and v['color'] not in colors %}
+          {% set _ = colors.append(v['color']) %}
+          {% endif %}
+          {% endfor %}
+
+          {% if colors %}
+          <div style="margin-bottom: 1.5rem;">
+            <label class="label-caps" style="display:block; margin-bottom:0.5rem; color:var(--on-surface-variant);">Color</label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="colorSelector">
+              {% for c in colors %}
+              <button class="var-btn filter-pill" onclick="selectColor('{{ c }}')" data-val="{{ c }}">{{ c }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Size Selector -->
+          {% set sizes = [] %}
+          {% for v in variants %}
+          {% if v['size'] and v['size'] not in sizes %}
+          {% set _ = sizes.append(v['size']) %}
+          {% endif %}
+          {% endfor %}
+
+          {% if sizes %}
+          <div style="margin-bottom: 1.5rem;">
+            <label class="label-caps" style="display:block; margin-bottom:0.5rem; color:var(--on-surface-variant);">Size</label>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="sizeSelector">
+              {% for s in sizes %}
+              <button class="var-btn filter-pill" onclick="selectSize('{{ s }}')" data-val="{{ s }}">{{ s }}</button>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+        </div>
+        {% endif %}
+
+        <div id="stockMsg" style="margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600;"></div>
+
+        <button id="addToCartBtn" class="gp-btn-primary" style="width: 100%; padding: 1rem; font-size: 1rem;"
+          onclick="addVariantToCart()">Add to Cart</button>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Data Island for JS -->
+<div id="productData" data-base-price="{{ product['base_price'] }}" data-product-name="{{ product['name'] }}"
+  data-variants="{{ variants|tojson|forceescape }}">
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const dataEl = document.getElementById('productData');
+  const basePrice = parseFloat(dataEl.dataset.basePrice) || 0;
+  const productName = dataEl.dataset.productName;
+  const variants = JSON.parse(dataEl.dataset.variants || '[]');
+  let selectedColor = null;
+  let selectedSize = null;
+  let currentVariant = null;
+
+  function setMainImage(src) {
+    document.getElementById('mainProductImage').src = src;
+  }
+
+  function updateUI() {
+    document.querySelectorAll('#colorSelector .var-btn').forEach(b => {
+      if (b.dataset.val === selectedColor) { b.classList.add('active'); }
+      else { b.classList.remove('active'); }
+    });
+    document.querySelectorAll('#sizeSelector .var-btn').forEach(b => {
+      if (b.dataset.val === selectedSize) { b.classList.add('active'); }
+      else { b.classList.remove('active'); }
+    });
+
+    currentVariant = null;
+    if (variants.length > 0) {
+      currentVariant = variants.find(v =>
+        (!v.color || v.color === selectedColor) &&
+        (!v.size || v.size === selectedSize)
+      );
+    }
+
+    const priceEl = document.getElementById('productPrice');
+    const stockEl = document.getElementById('stockMsg');
+    const btn = document.getElementById('addToCartBtn');
+
+    if (variants.length > 0 && !currentVariant && (selectedColor || selectedSize)) {
+      stockEl.textContent = "Variant not available";
+      stockEl.style.color = "var(--error)";
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    } else if (currentVariant) {
+      if (currentVariant.price_override) {
+        priceEl.textContent = '$' + currentVariant.price_override;
+      } else {
+        priceEl.textContent = '$' + basePrice;
+      }
+
+      if (currentVariant.stock_quantity > 0) {
+        stockEl.textContent = currentVariant.stock_quantity + " in stock";
+        stockEl.style.color = "var(--success)";
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      } else {
+        stockEl.textContent = "Out of stock";
+        stockEl.style.color = "var(--error)";
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      }
+    } else if (variants.length === 0) {
+      stockEl.textContent = "In stock";
+      stockEl.style.color = "var(--success)";
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    } else {
+      stockEl.textContent = "Please select options";
+      stockEl.style.color = "var(--text-muted)";
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    }
+  }
+
+  function selectColor(c) {
+    selectedColor = c;
+    const thumb = document.querySelector('.thumbnail-img[data-color="' + c + '"]');
+    if (thumb) setMainImage(thumb.src);
+    updateUI();
+  }
+
+  function selectSize(s) {
+    selectedSize = s;
+    updateUI();
+  }
+
+  function addVariantToCart() {
+    if (variants.length > 0 && !currentVariant) return;
+
+    var itemName = productName;
+    var itemPrice = basePrice;
+
+    if (currentVariant) {
+      if (currentVariant.color) itemName += ' — ' + currentVariant.color;
+      if (currentVariant.size) itemName += ' (' + currentVariant.size + ')';
+      if (currentVariant.price_override) itemPrice = currentVariant.price_override;
+    }
+
+    window.addItemToCart(itemName, itemPrice);
+    showToast('Added ' + itemName + ' to cart! 🛒');
+  }
+
+  if (variants.length > 0) {
+    updateUI();
+  }
+</script>
+{% endblock %}

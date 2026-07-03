@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+{% block title %}{{ post['title'] + ' — ' if post else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}{{ (post['excerpt'] or post['body']|striptags|truncate(155)) if post else '' }}{% endblock %}
+
+{% block meta_extra %}
+{% if post %}
+<meta property="og:title" content="{{ post['title'] }}">
+<meta property="og:description" content="{{ post['excerpt'] or post['body']|striptags|truncate(155) }}">
+<meta property="og:type" content="article">
+{% endif %}
+{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ── Reading Progress Bar ─────────────────────────────── */
+  #read-progress {
+    position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 200;
+    background: var(--secondary);
+    transition: width .1s linear;
+  }
+
+  /* ── Post Article Container ───────────────────────────── */
+  .post-article {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 120px 24px 80px;
+  }
+
+  /* ── Article Header ───────────────────────────────────── */
+  .post-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+    opacity: 0.7;
+    text-decoration: none;
+    margin-bottom: 24px;
+    transition: opacity 0.3s, color 0.3s;
+  }
+  .post-back-link:hover {
+    opacity: 1;
+    color: var(--secondary);
+  }
+  .post-back-link .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  .post-tag {
+    display: inline-block;
+    background: var(--secondary);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 9999px;
+    margin-bottom: 16px;
+  }
+
+  .post-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--primary);
+    margin: 0 0 16px;
+  }
+  .post-title .italic {
+    font-style: italic;
+    font-weight: 300;
+  }
+
+  /* ── Author Meta Bar ──────────────────────────────────── */
+  .post-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .post-meta-author {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .post-author-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    border: 1px solid var(--surface-container-high);
+    flex-shrink: 0;
+  }
+  .post-author-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+  }
+  .post-meta-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--outline-variant);
+    display: none;
+  }
+  .post-meta-detail {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+    opacity: 0.7;
+  }
+  @media (min-width: 640px) {
+    .post-meta-dot { display: block; }
+    .post-meta { flex-wrap: nowrap; }
+  }
+
+  /* ── Draft Banner ─────────────────────────────────────── */
+  .post-draft-banner {
+    background: var(--surface-container);
+    border: 1px solid var(--surface-container-high);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--on-surface-variant);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .post-draft-banner a {
+    color: var(--secondary);
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 4px;
+  }
+  .post-draft-banner a:hover {
+    text-decoration: underline;
+  }
+
+  /* ── Hero Image ───────────────────────────────────────── */
+  .post-hero-img-wrap {
+    width: 100%;
+    height: 380px;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 8px 32px rgba(44, 34, 118, 0.12);
+    margin-bottom: 32px;
+  }
+  .post-hero-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .post-hero-img-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.35), transparent);
+  }
+
+  /* ── Article Body Prose ───────────────────────────────── */
+  .post-body {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.8;
+    color: var(--on-background);
+    margin-bottom: 80px;
+  }
+  .post-body .lead-text {
+    font-size: 18px;
+    font-weight: 300;
+    line-height: 1.6;
+    color: var(--on-surface-variant);
+    margin-bottom: 24px;
+  }
+  .post-body p {
+    margin-bottom: 24px;
+  }
+  .post-body h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 32px;
+    line-height: 1.2;
+    color: var(--primary);
+    margin-top: 40px;
+    margin-bottom: 16px;
+  }
+  .post-body h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 24px;
+    line-height: 1.3;
+    color: var(--primary);
+    margin-top: 32px;
+    margin-bottom: 12px;
+  }
+  .post-body strong {
+    font-weight: 600;
+    color: var(--primary);
+  }
+
+  /* Glassmorphic blockquote */
+  .post-body blockquote {
+    border-left: 3px solid var(--on-tertiary-container, #29a2d7);
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 28px 32px;
+    margin: 32px 0;
+    border-radius: 0 12px 12px 0;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px;
+    font-weight: 500;
+    font-style: italic;
+    line-height: 1.3;
+    color: var(--primary);
+    box-shadow: 0 2px 12px rgba(44, 34, 118, 0.06);
+  }
+
+  /* Training drill / callout box */
+  .post-body .callout-box,
+  .post-body div[style*="background"] {
+    background: var(--surface-container) !important;
+    padding: 24px;
+    border-radius: 8px;
+    margin: 32px 0;
+    border: 1px solid var(--surface-container-high);
+  }
+  .post-body .callout-box h3,
+  .post-body .callout-box h4 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin: 0 0 8px;
+  }
+  .post-body .callout-box p {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .post-body ul, .post-body ol {
+    padding-left: 24px;
+    margin-bottom: 24px;
+  }
+  .post-body li {
+    margin-bottom: 8px;
+  }
+  .post-body a {
+    color: var(--secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .post-body a:hover {
+    color: var(--primary);
+  }
+  .post-body img {
+    width: 100%;
+    border-radius: 12px;
+    margin: 24px 0;
+    box-shadow: 0 4px 16px rgba(44, 34, 118, 0.08);
+  }
+
+  /* ── Share + Admin Toolbar ────────────────────────────── */
+  .post-toolbar {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--surface-container-high);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  @media (min-width: 640px) {
+    .post-toolbar {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+  }
+  .post-share-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .post-share-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+  }
+  .post-share-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+  }
+  .post-share-btn:hover {
+    color: var(--secondary);
+  }
+  .post-share-btn .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  .post-admin-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .post-admin-btn {
+    padding: 8px 16px;
+    border-radius: 9999px;
+    border: 1px solid var(--outline-variant);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary);
+    background: none;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+  }
+  .post-admin-btn:hover {
+    background: var(--surface-container);
+  }
+  .post-admin-btn--danger {
+    border-color: var(--error);
+    color: var(--error);
+  }
+  .post-admin-btn--danger:hover {
+    background: var(--error-container);
+  }
+
+  /* ── Related Posts ────────────────────────────────────── */
+  .post-related-section {
+    margin-top: 80px;
+  }
+  .post-related-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 24px;
+    line-height: 1.3;
+    color: var(--primary);
+    margin-bottom: 24px;
+  }
+  .post-related-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  @media (min-width: 640px) {
+    .post-related-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  @media (min-width: 900px) {
+    .post-related-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  .post-related-card {
+    display: block;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.40);
+    padding: 24px;
+    border-radius: 12px;
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(44, 34, 118, 0.06);
+    transition: box-shadow 0.3s, transform 0.3s;
+  }
+  .post-related-card:hover {
+    box-shadow: 0 8px 24px rgba(44, 34, 118, 0.12);
+    transform: translateY(-2px);
+  }
+  .post-related-card-meta {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+    opacity: 0.7;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .post-related-card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 20px;
+    line-height: 1.3;
+    color: var(--primary);
+    transition: color 0.2s;
+  }
+  .post-related-card:hover .post-related-card-title {
+    color: var(--secondary);
+  }
+
+  /* ── 404 State ────────────────────────────────────────── */
+  .post-not-found {
+    padding: 120px 24px 80px;
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .post-not-found h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 48px;
+    color: var(--primary);
+    margin-bottom: 16px;
+  }
+  .post-not-found p {
+    font-family: 'Inter', sans-serif;
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--on-surface-variant);
+    margin-bottom: 32px;
+  }
+
+  /* ── Mobile tweaks ────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .post-article { padding: 90px 16px 60px; }
+    .post-hero-img-wrap { height: 240px; }
+    .post-body blockquote { padding: 20px 24px; font-size: 20px; }
+    .post-body h2 { font-size: 26px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="read-progress"></div>
+
+{% if not post %}
+<div class="post-not-found">
+  <h2>Post Not Found</h2>
+  <p>This post may have been removed or doesn't exist.</p>
+  <a href="{{ url_for('home') }}" class="gp-btn-primary">← Back to Journal</a>
+</div>
+{% else %}
+
+<article class="post-article page-enter" id="postContent">
+
+  {# ── Header ──────────────────────────────────────────── #}
+  <header>
+    <a href="{{ url_for('home') }}" class="post-back-link">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Back to Journal
+    </a>
+
+    {% if is_admin() and post['status'] == 'draft' %}
+    <div class="post-draft-banner">
+      📝 <strong>Draft</strong> — only you can see this post.
+      <a href="{{ url_for('admin.admin_index', edit=post['id']) }}">Publish it in Admin →</a>
+    </div>
+    {% endif %}
+
+    <div class="post-tag">Journal</div>
+
+    <h1 class="post-title">{{ post['title'] }}</h1>
+
+    <div class="post-meta">
+      <div class="post-meta-author">
+        <div class="post-author-avatar">{{ post['author'][0]|upper if post['author'] else 'C' }}</div>
+        <span class="post-author-name">{{ post['author'] or 'The Coach' }}</span>
+      </div>
+      <span class="post-meta-dot"></span>
+      <span class="post-meta-detail">{{ post['post_date']|fmt_date }}</span>
+      <span class="post-meta-dot"></span>
+      <span class="post-meta-detail">{{ post['read_time'] }} min read</span>
+    </div>
+  </header>
+
+  {# ── Article Body ────────────────────────────────────── #}
+  <div class="post-body">
+    {{ post['body']|safe }}
+  </div>
+
+  {# ── Share + Admin Toolbar ───────────────────────────── #}
+  <div class="post-toolbar">
+    <div class="post-share-group">
+      <span class="post-share-label">Share</span>
+      <button class="post-share-btn" id="copyBtn">
+        <span class="material-symbols-outlined">link</span> Copy Link
+      </button>
+      <button class="post-share-btn" id="shareXBtn">
+        <span class="material-symbols-outlined">share</span> Post on X
+      </button>
+    </div>
+    {% if is_admin() %}
+    <div class="post-admin-group">
+      <a href="{{ url_for('admin.admin_index', edit=post['id']) }}" class="post-admin-btn">Edit Post</a>
+      <button class="post-admin-btn post-admin-btn--danger" id="deleteBtn">Delete</button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Related Posts ───────────────────────────────────── #}
+  {% if related %}
+  <section class="post-related-section">
+    <h3 class="post-related-title">More from the Journal</h3>
+    <div class="post-related-grid">
+      {% for r in related %}
+      <a href="{{ url_for('post_detail', post_id=r['id']) }}" class="post-related-card">
+        <span class="post-related-card-meta">{{ r['post_date']|fmt_date }} · {{ r['read_time'] if r['read_time'] else '3' }} min read</span>
+        <span class="post-related-card-title">{{ r['title'] }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</article>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Reading progress bar
+(function(){
+  var bar = document.getElementById('read-progress');
+  var content = document.getElementById('postContent');
+  if (!bar || !content) return;
+  window.addEventListener('scroll', function() {
+    var rect = content.getBoundingClientRect();
+    var total = content.offsetHeight - window.innerHeight;
+    var scrolled = Math.max(0, -rect.top);
+    var pct = total > 0 ? Math.min(100, (scrolled / total) * 100) : 0;
+    bar.style.width = pct + '%';
+  }, {passive: true});
+})();
+</script>
+
+{% if post %}
+<script>
+var db2 = document.getElementById('deleteBtn');
+if (db2) db2.addEventListener('click', function() {
+  if (!confirm('Delete this post permanently?')) return;
+  fetch('/api/delete_post', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'id={{ post["id"] }}'})
+    .then(r => r.json()).then(d => { if (d.ok) window.location.href = '/'; else showToast(d.msg, 'error'); });
+});
+
+document.getElementById('copyBtn') && document.getElementById('copyBtn').addEventListener('click', function() {
+  navigator.clipboard && navigator.clipboard.writeText(window.location.href).then(function() { showToast('Link copied!'); });
+});
+document.getElementById('shareXBtn') && document.getElementById('shareXBtn').addEventListener('click', function() {
+  window.open('https://x.com/intent/tweet?text={{ post["title"]|urlencode }}%20' + encodeURIComponent(window.location.href), '_blank');
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Order Confirmed — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container" style="max-width:600px; text-align:center;">
+    
+    <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--success); color: white; display: flex; align-items: center; justify-content: center; margin: 0 auto 2rem auto;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    </div>
+
+    <h1 class="display-lg" style="margin-bottom: 1rem; color:var(--primary);">Order Confirmed!</h1>
+    <p class="body-lg" style="color:var(--on-surface-variant); margin-bottom: 2.5rem;">
+      Thank you for purchasing our coach-manufactured skates. Your order has been received and is being processed for shipping.
+    </p>
+
+    <div style="background:var(--surface-container-low); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--isu-pale); margin-bottom: 3rem;">
+      <p style="color:var(--on-surface-variant); font-size: 14px;">
+        Order Number: <strong style="color:var(--on-surface);">#{{ range(1000, 9999) | random }}</strong><br>
+        A confirmation email will be sent shortly.
+      </p>
+    </div>
+
+    <a href="{{ url_for('shop') }}" class="gp-btn-primary" style="display:inline-flex;">
+      Continue Shopping
+    </a>
+
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Clear the cart on successful order
+  localStorage.removeItem('cartCount');
+  updateCartBadge();
+</script>
+{% endblock %}

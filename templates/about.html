@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block title %}About — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}Learn about On Ice — a coaching journal for skaters who chase the quiet moments between jumps.{% endblock %}
+
+{% block head_extra %}
+<style>
+/* ============================================
+   ABOUT PAGE — ISU Aurora Theme
+   ============================================ */
+
+.about-hero {
+    padding: 120px 24px 64px;
+    text-align: center;
+    background: var(--surface, #EFF6FF);
+}
+
+.about-hero-inner {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.eyebrow {
+    display: inline-block;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--secondary, #3D52B5);
+    margin-bottom: 20px;
+}
+
+.about-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    line-height: 1.1;
+    color: var(--primary, #2C2276);
+    margin: 0 0 24px;
+}
+
+.about-title em {
+    font-style: italic;
+    font-weight: 600;
+}
+
+.about-lede {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--on-surface-variant, #1E3A8A);
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.about-content {
+    padding: 0 24px 120px;
+    background: var(--surface, #EFF6FF);
+}
+
+.about-grid {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+/* Glass card base */
+.glass.about-card {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 24px;
+    box-shadow:
+        0 4px 24px rgba(44, 34, 118, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.90);
+    padding: 32px;
+}
+
+.about-card--story {
+    grid-column: span 3;
+}
+
+.about-card--story h2,
+.about-card--values h2,
+.about-card--cta h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 1.8rem;
+    color: var(--primary, #2C2276);
+    margin: 0 0 14px;
+}
+
+.about-card--story p {
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--on-surface-variant, #1E3A8A);
+    margin: 0 0 14px;
+}
+
+.about-card--story p:last-child {
+    margin-bottom: 0;
+}
+
+/* Stat chips */
+.about-card--stat {
+    grid-column: span 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+}
+
+.stat-number {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 1.8rem;
+    color: var(--secondary, #3D52B5);
+}
+
+.stat-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text-muted, #64748B);
+}
+
+/* Values list */
+.about-card--values {
+    grid-column: span 2;
+}
+
+.values-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.values-list li {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.values-mark {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 1.3rem;
+    color: var(--secondary, #3D52B5);
+    opacity: 0.5;
+    flex-shrink: 0;
+    width: 32px;
+}
+
+.values-list h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.98rem;
+    color: var(--primary, #2C2276);
+    margin: 0 0 4px;
+}
+
+.values-list p {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--on-surface-variant, #1E3A8A);
+    margin: 0;
+}
+
+/* CTA card */
+.about-card--cta {
+    grid-column: span 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+}
+
+.about-card--cta p {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--on-surface-variant, #1E3A8A);
+    margin: 0 0 20px;
+}
+
+.about-cta-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-ice,
+.btn-ghost {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 12px 22px;
+    border-radius: 999px;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.btn-ice {
+    background: var(--secondary, #3D52B5);
+    color: #fff;
+}
+
+.btn-ice:hover {
+    background: var(--primary, #2C2276);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(61, 82, 181, 0.25);
+    color: var(--primary, #2C2276);
+}
+
+.btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.75);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .about-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .about-card--story {
+        grid-column: span 2;
+    }
+    .about-card--values {
+        grid-column: span 2;
+    }
+    .about-card--cta {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 600px) {
+    .about-hero {
+        padding: 90px 20px 48px;
+    }
+    .about-grid {
+        grid-template-columns: 1fr;
+    }
+    .about-card--story,
+    .about-card--stat,
+    .about-card--values,
+    .about-card--cta {
+        grid-column: span 1;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="about-hero">
+    <div class="about-hero-inner">
+        <span class="eyebrow">AURORA FROST EDITION · ABOUT</span>
+        <h1 class="about-title">Every story starts<br><em>on the ice.</em></h1>
+        <p class="about-lede">
+            {{ settings.get('blog_name', 'On Ice') }} is a journal for skaters who chase
+            the quiet moments between jumps — the early mornings, the worn-out laces,
+            the small breakthroughs nobody else saw happen.
+        </p>
+    </div>
+</section>
+
+<section class="about-content">
+    <div class="about-grid">
+
+        <article class="glass about-card about-card--story">
+            <h2>Why this exists</h2>
+            <p>
+                Figure skating is usually told through medals and scores. We wanted
+                somewhere for the rest of it — the technique breakdowns, the gear
+                that actually holds up, the rules nobody explains clearly, and the
+                everyday discipline that never makes the highlight reel.
+            </p>
+            <p>
+                What began as personal training notes grew into a full journal:
+                coaching write-ups, an ISU rules reference, a curated shop, and a
+                gallery of the sport at its most honest.
+            </p>
+        </article>
+
+        <article class="glass about-card about-card--stat">
+            <span class="stat-number">3240+</span>
+            <span class="stat-label">skaters guided</span>
+        </article>
+
+        <article class="glass about-card about-card--stat">
+            <span class="stat-number">Expert-only</span>
+            <span class="stat-label">advice, no filler</span>
+        </article>
+
+        <article class="glass about-card about-card--stat">
+            <span class="stat-number">Curated</span>
+            <span class="stat-label">gear picks only</span>
+        </article>
+
+        <article class="glass about-card about-card--values">
+            <h2>What we believe</h2>
+            <ul class="values-list">
+                <li>
+                    <span class="values-mark">01</span>
+                    <div>
+                        <h3>Technique over trend</h3>
+                        <p>Every guide is grounded in ISU standards, not opinion.</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="values-mark">02</span>
+                    <div>
+                        <h3>Honest gear reviews</h3>
+                        <p>We only feature what we'd actually skate in ourselves.</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="values-mark">03</span>
+                    <div>
+                        <h3>The journal comes first</h3>
+                        <p>Writing and coaching are the foundation — everything else supports it.</p>
+                    </div>
+                </li>
+            </ul>
+        </article>
+
+        <article class="glass about-card about-card--cta">
+            <h2>Glide further with us</h2>
+            <p>New journal entries, technique breakdowns, and curated gear — weekly.</p>
+            <div class="about-cta-buttons">
+                <a href="{{ url_for('home') }}" class="btn-ice">Read the Journal</a>
+                <a href="{{ url_for('contact') }}" class="btn-ghost">Get in Touch</a>
+            </div>
+        </article>
+
+    </div>
+</section>
+{% endblock %}

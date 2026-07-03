@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}Techniques — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container" style="max-width:900px;">
+    
+    <div style="margin-bottom: 3rem; text-align: center;">
+      <img src="/static/images/techniques_skating.png" alt="Ice skate close up" 
+           style="width: 100%; height: 300px; object-fit: cover; border-radius: var(--radius-lg); margin-bottom: 2rem; border: 1px solid var(--isu-pale);"
+           onerror="this.style.background='var(--surface-container-low)'; this.src='';">
+      <div class="section-label">TECHNICAL MASTERY</div>
+      <h1 class="section-title">Techniques</h1>
+      <p class="section-subtitle">Detailed guides on jumps, spins, and skating fundamentals. Click any card to expand the full breakdown.</p>
+    </div>
+
+    {% if not techs %}
+    <div style="text-align:center; padding: 4rem; background: var(--surface-white); border: 1px solid var(--isu-pale); border-radius: var(--radius-lg);">
+      <h3 style="font-family:var(--font-heading); font-size: 24px; margin-bottom: 0.5rem;">❄ No Techniques Yet</h3>
+      <p style="color: var(--on-surface-variant);">The coach will add technique guides soon.</p>
+    </div>
+    {% else %}
+    <div id="techGrid">
+      {% for t in techs %}
+      <div class="tech-card" data-tid="{{ t['id'] }}">
+        <div class="tech-card-header">
+          <div class="tech-card-left">
+            <span class="tech-card-icon">{{ t['icon'] or '⛸' }}</span>
+            <div>
+              <div class="tech-card-title">{{ t['title'] }}</div>
+              <div class="tech-card-subtitle">{{ t['excerpt'] }}</div>
+            </div>
+          </div>
+          <button class="tech-card-toggle">▼ Read Full Breakdown</button>
+        </div>
+        <div class="tech-card-body">
+          {{ t['body']|safe }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if is_admin() %}
+    <div style="margin-top:3rem; padding-top:2rem; border-top:1px solid var(--surface-container); text-align: center;">
+      <a href="{{ url_for('admin.admin_index', sec='techniques') }}" class="gp-btn-secondary">✎ Manage Techniques</a>
+    </div>
+    {% endif %}
+
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  document.querySelectorAll('.tech-card-header').forEach(function(header) {
+    header.addEventListener('click', function() {
+      var card = header.closest('.tech-card');
+      var toggle = header.querySelector('.tech-card-toggle');
+      var expanded = card.classList.toggle('expanded');
+      toggle.textContent = expanded ? '▲ Show Less' : '▼ Read Full Breakdown';
+    });
+  });
+})();
+</script>
+{% endblock %}

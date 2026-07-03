@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Shop — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section" style="padding-top:7rem;">
+  <div class="container">
+
+    <!-- Featured Banner -->
+    <div class="shop-banner">
+      <div class="shop-banner-text">
+        <div class="label-caps" style="color:var(--text-muted); margin-bottom:0.5rem;">TECHNIQUE SPOTLIGHT</div>
+        <h2 class="headline-md" style="color:var(--on-surface); margin-bottom:1rem;">Mastering the Outside Edge</h2>
+        <p class="body-md" style="color:var(--on-surface-variant); margin-bottom:1.5rem;">
+          A deep outside edge is the foundation of powerful stroking and complex turns. Discover our curated selection of blades designed to enhance your edge control and stability.
+        </p>
+        <a href="{{ url_for('techniques') }}" class="article-card-read-link">Read the full guide →</a>
+      </div>
+      <img src="/static/images/shop-banner.jpg" alt="Skating blade on ice" class="shop-banner-img"
+           onerror="this.style.background='linear-gradient(135deg, var(--surface-container-low), var(--surface-container))'; this.style.minHeight='250px';">
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="filter-bar">
+      <button class="filter-pill active" onclick="filterProducts('all', this)">All Gear</button>
+      {% for cat in categories %}
+      <button class="filter-pill" onclick="filterProducts('{{ cat }}', this)">{{ cat }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- Product Grid -->
+    <div class="grid-3" id="productGrid">
+      {% for product in products %}
+      <div class="product-card" data-category="{{ product.category or 'all' }}">
+        <div class="product-card-img-wrap">
+          {% if product.image %}
+          <img src="{{ product.image }}" alt="{{ product.name }}" class="product-card-img">
+          {% else %}
+          <img src="{{ url_for('static', filename='images/pro_ice.png') }}" alt="Product Image Fallback" class="product-card-img">
+          {% endif %}
+          {% if product.badge %}
+          <div class="product-card-badge">{{ product.badge }}</div>
+          {% endif %}
+        </div>
+        <div class="product-card-body">
+          <div class="product-card-header">
+            <h3 class="product-card-name">{{ product.name }}</h3>
+            <span class="product-card-price">₹{{ '%.2f' % product.base_price }}</span>
+          </div>
+          <p class="product-card-desc">{{ product.description or '' }}</p>
+          <div class="product-card-actions">
+            <button class="btn-add-cart" onclick="addToCart(this, event, '{{ product.name }}', '{{ product.base_price }}')">Add to Cart</button>
+            <a href="{{ url_for('product', product_id=product.id) }}" class="btn-view-details">View Details →</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterProducts(cat, btn) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#productGrid .product-card').forEach(c => {
+    if (cat === 'all' || c.dataset.category === cat) {
+      c.style.display = '';
+    } else {
+      c.style.display = 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

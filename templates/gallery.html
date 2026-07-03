@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Gallery — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">THE ICE GALLERY</div>
+      <h1 class="section-title">Frozen <em>Moments</em></h1>
+      <p class="section-subtitle">A visual journey through the technical precision and emotional grace of professional figure skating, captured in suspended time.</p>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <button class="filter-pill active" onclick="filterGallery('all', this)">All</button>
+      {% for cat in categories %}
+      <button class="filter-pill" onclick="filterGallery('{{ cat }}', this)">{{ cat }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- Gallery Grid -->
+    <div class="gallery-grid" id="galleryGrid">
+      {% for item in gallery_items %}
+      <div class="gallery-item" data-category="{{ item.category or 'all' }}" onclick="openLightbox({{ loop.index0 }})">
+        <img src="{{ item.image_url }}" alt="{{ item.title }}" class="gallery-item-img"
+             onerror="this.style.background='var(--surface-container-low)'; this.style.minHeight='200px';">
+        <div class="gallery-item-info">
+          {% if item.category %}
+          <div class="gallery-item-tag">{{ item.category }}</div>
+          {% endif %}
+          <div class="gallery-item-title">{{ item.title }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="lb-overlay" id="lightbox" style="display:none;">
+  <button class="lb-close" onclick="closeLightbox()">✕ Close</button>
+  <button class="lb-nav-btn lb-prev" onclick="navLightbox(-1)">←</button>
+  <div class="lb-content">
+    <img id="lb-img" class="lb-img" src="" alt="">
+  </div>
+  <div class="lb-caption" id="lb-caption"></div>
+  <button class="lb-nav-btn lb-next" onclick="navLightbox(1)">→</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var galleryItems = {{ gallery_items|tojson }};
+var lbIndex = 0;
+
+function filterGallery(cat, btn) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#galleryGrid .gallery-item').forEach(c => {
+    if (cat === 'all' || c.dataset.category === cat) {
+      c.style.display = '';
+    } else {
+      c.style.display = 'none';
+    }
+  });
+}
+
+function openLightbox(idx) {
+  lbIndex = idx;
+  var lb = document.getElementById('lightbox');
+  lb.style.display = 'flex';
+  updateLightbox();
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function navLightbox(dir) {
+  lbIndex = (lbIndex + dir + galleryItems.length) % galleryItems.length;
+  updateLightbox();
+}
+
+function updateLightbox() {
+  var item = galleryItems[lbIndex];
+  document.getElementById('lb-img').src = item.image_url;
+  document.getElementById('lb-caption').textContent = item.title || '';
+}
+
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
+});
+document.addEventListener('keydown', function(e) {
+  var lb = document.getElementById('lightbox');
+  if (lb.style.display === 'none') return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') navLightbox(-1);
+  if (e.key === 'ArrowRight') navLightbox(1);
+});
+</script>
+{% endblock %}

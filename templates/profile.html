@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Profile — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container" style="max-width:600px;">
+    {% set sess = get_sess() %}
+    
+    {% if not sess %}
+    <div style="text-align:center; padding: 4rem 2rem; background: var(--surface-container-low); border: 1px solid var(--isu-pale); border-radius: var(--radius-lg);">
+      <h2 class="headline-md" style="margin-bottom:1rem; color:var(--primary);">You are not signed in</h2>
+      <p class="body-lg" style="color:var(--on-surface-variant); margin-bottom:2rem;">Sign in to access your profile.</p>
+      <button class="gp-btn-primary" id="signInBtn">Sign In →</button>
+    </div>
+    {% else %}
+    <div class="section-header">
+      <div class="section-label">ACCOUNT</div>
+      <h1 class="section-title">Your Profile</h1>
+    </div>
+
+    <!-- Profile Info Card -->
+    <div style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:2rem; text-align:center; margin-bottom:2rem;">
+      <div style="width:80px; height:80px; border-radius:50%; background:var(--secondary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:2rem; font-family:var(--font-heading); font-weight:700; margin: 0 auto 1rem;">
+        {{ sess.username[0]|upper }}
+      </div>
+      <h2 class="headline-md" style="margin-bottom:0.5rem; color:var(--primary);">{{ sess.username }}</h2>
+      <span class="filter-pill active" style="font-size:12px; padding:0.25rem 0.75rem; pointer-events:none;">
+        {% if sess.role == 'admin' %}Coach / Admin{% elif sess.role == 'google' %}Google Member{% else %}Member{% endif %}
+      </span>
+      <p style="font-size:13px; color:var(--on-surface-variant); margin-top:1rem;">Member since {{ current_year }}</p>
+    </div>
+
+    <!-- Password Change (if not google/admin) -->
+    {% if sess.role != 'google' and sess.role != 'admin' %}
+    <div style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:2rem; margin-bottom:2rem;">
+      <h3 class="headline-md" style="font-size:20px; margin-bottom:1.5rem; color:var(--primary);">Change Password</h3>
+      <div id="pwMsg"></div>
+      
+      <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input class="form-input" type="password" id="currPw" placeholder="••••••••">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input class="form-input" type="password" id="newPw" placeholder="Min. 6 chars">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New</label>
+          <input class="form-input" type="password" id="newPw2" placeholder="Repeat">
+        </div>
+      </div>
+      
+      <button class="gp-btn-primary" id="changePwBtn">Update Password</button>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div style="display:flex; gap:1rem; border-top:1px solid var(--isu-pale); padding-top:1.5rem;">
+      <a href="{{ url_for('home') }}" class="gp-btn-secondary">← Back to Blog</a>
+      <button class="gp-btn-secondary" id="logoutBtn2" style="border-color:var(--error); color:var(--error);">Logout</button>
+    </div>
+
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var si = document.getElementById('signInBtn');
+if (si) si.addEventListener('click', function() {
+  fetch('/auth/modal?mode=login').then(r => r.text()).then(h => {
+    document.getElementById('modal-slot').innerHTML = h;
+  });
+});
+
+var lo = document.getElementById('logoutBtn2');
+if (lo) lo.addEventListener('click', function() {
+  fetch('/auth/logout').then(() => window.location.href = '/');
+});
+
+var cp = document.getElementById('changePwBtn');
+if (cp) cp.addEventListener('click', function() {
+  var curr = document.getElementById('currPw').value;
+  var nw = document.getElementById('newPw').value;
+  var nw2 = document.getElementById('newPw2').value;
+  fetch('/auth/change_password', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'current=' + encodeURIComponent(curr) + '&new=' + encodeURIComponent(nw) + '&new2=' + encodeURIComponent(nw2)})
+    .then(r => r.json()).then(d => {
+      showToast(d.msg, d.ok ? '' : 'error');
+      if (d.ok) { document.getElementById('currPw').value = ''; document.getElementById('newPw').value = ''; document.getElementById('newPw2').value = ''; }
+    });
+});
+</script>
+{% endblock %}

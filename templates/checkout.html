@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}Secure Checkout — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container" style="max-width:900px;">
+    
+    <div class="section-header">
+      <div class="section-label">PAYMENT GATEWAY</div>
+      <h1 class="section-title">Secure Checkout</h1>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 3rem;">
+      <!-- Order Summary -->
+      <div style="background:var(--surface-container-low); padding: 1.5rem; border-radius: var(--radius-lg); border: 1px solid var(--isu-pale); height: fit-content;">
+        <h3 class="headline-md" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--isu-pale); padding-bottom: 0.5rem; color:var(--primary);">Order Summary</h3>
+        <div id="checkout-items" style="color:var(--on-surface-variant); font-size: 14px; margin-bottom: 1rem;">
+          Calculating your items...
+        </div>
+        <div style="display:flex; justify-content:space-between; font-weight:600; font-size: 18px; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--isu-pale); color:var(--primary);">
+          <span>Total:</span>
+          <span id="checkout-total">₹0</span>
+        </div>
+      </div>
+
+      <!-- Payment Form -->
+      <div>
+        <form id="payment-form" style="display:flex; flex-direction:column; gap: 1.5rem;" onsubmit="handleCheckout(event)">
+          <input type="hidden" name="csrf_token" id="csrf" value="{{ csrf_token() }}">
+          
+          <div class="form-group">
+            <label class="form-label">Shipping Name</label>
+            <input type="text" id="shipping-name" class="form-input" required placeholder="John Doe">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Shipping Address</label>
+            <input type="text" id="shipping-address" class="form-input" required placeholder="123 Ice Rink Rd, Mumbai">
+          </div>
+
+          <!-- Payment Method -->
+          <div style="border: 1px solid var(--secondary); padding: 1.5rem; border-radius: var(--radius-lg); background: rgba(30,136,229,0.05); position:relative; overflow:hidden;">
+            <div style="position:absolute; top:0; left:0; right:0; height:4px; background:var(--secondary);"></div>
+            <h4 style="margin-bottom: 1rem; color:var(--secondary); font-family:var(--font-heading); font-size: 18px;">Payment Method</h4>
+            
+            <div style="display:flex; flex-direction: column; gap: 1rem;">
+              <label style="display:flex; align-items:center; gap: 0.5rem; cursor:pointer; color:var(--on-surface);">
+                <input type="radio" name="payment_method" value="razorpay" checked>
+                <span style="font-size:14px;">Razorpay (Cards, UPI, NetBanking)</span>
+              </label>
+              <label style="display:flex; align-items:center; gap: 0.5rem; cursor:pointer; color:var(--on-surface);">
+                <input type="radio" name="payment_method" value="paytm">
+                <span style="font-size:14px;">Paytm Checkout</span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" id="pay-btn" class="gp-btn-primary" style="width:100%; justify-content:center; padding: 1rem;">
+            Pay Now
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<!-- Razorpay Checkout Script -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<script>
+  let totalAmount = 0;
+
+  // ── Order Summary ──────────
+  (function() {
+    var cart = [];
+    try { cart = JSON.parse(localStorage.getItem('cart') || '[]'); }
+    catch(e) { cart = []; }
+
+    var itemsEl = document.getElementById('checkout-items');
+    var totalEl = document.getElementById('checkout-total');
+    var submitBtn = document.getElementById('pay-btn');
+
+    if (cart.length === 0) {
+      itemsEl.innerHTML = '<p style="color:var(--text-muted);">Your cart is empty. <a href="/shop" style="color:var(--secondary);">Browse the shop →</a></p>';
+      totalEl.textContent = '₹0';
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.5';
+      return;
+    }
+
+    var html = '<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;">';
+    cart.forEach(function(item) {
+      var price = parseFloat(item.price) || 0;
+      totalAmount += price;
+      html += '<li style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">'
+            + '<span style="color:var(--text-primary);">' + (item.name || 'Item') + '</span>'
+            + '<span style="color:var(--secondary);font-weight:600;white-space:nowrap;">₹' + price.toLocaleString('en-IN') + '</span>'
+            + '</li>';
+    });
+    html += '</ul>';
+    
+    itemsEl.innerHTML = html;
+    totalEl.textContent = '₹' + totalAmount.toLocaleString('en-IN');
+  })();
+
+  function handleCheckout(e) {
+    e.preventDefault();
+    if(totalAmount <= 0) return;
+
+    var name = document.getElementById('shipping-name').value;
+    var address = document.getElementById('shipping-address').value;
+    var csrf = document.getElementById('csrf').value;
+    var paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+
+    var payBtn = document.getElementById('pay-btn');
+    payBtn.textContent = 'Processing...';
+    payBtn.disabled = true;
+
+    if (paymentMethod === 'razorpay') {
+      // 1. Create Razorpay Order
+      var fd = new FormData();
+      fd.append('total_amount', totalAmount);
+
+      fetch('/api/create_razorpay_order', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf },
+        body: fd
+      }).then(r => r.json()).then(data => {
+        if (!data.ok) {
+          alert('Error creating Razorpay order: ' + data.msg);
+          payBtn.textContent = 'Pay Now';
+          payBtn.disabled = false;
+          return;
+        }
+
+        // 2. Initialize Razorpay Checkout
+        var options = {
+          "key": "{{ config.RAZORPAY_KEY_ID }}", 
+          "amount": data.amount,
+          "currency": "INR",
+          "name": "On Ice Skating Blog",
+          "description": "Premium Skates Order",
+          "order_id": data.order_id,
+          "handler": function (response){
+             // 3. Verify Razorpay Payment
+             var verifyFd = new FormData();
+             verifyFd.append('razorpay_payment_id', response.razorpay_payment_id);
+             verifyFd.append('razorpay_order_id', response.razorpay_order_id);
+             verifyFd.append('razorpay_signature', response.razorpay_signature);
+             verifyFd.append('name', name);
+             verifyFd.append('address', address);
+             verifyFd.append('total_amount', totalAmount);
+
+             fetch('/api/verify_razorpay', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf },
+                body: verifyFd
+             }).then(r => r.json()).then(vData => {
+                if (vData.ok) {
+                  localStorage.removeItem('cart');
+                  window.location.href = '/order-success';
+                } else {
+                  alert('Verification failed: ' + vData.msg);
+                }
+             });
+          },
+          "prefill": {
+              "name": name,
+              "contact": "9999999999" // Dummy for demo
+          },
+          "theme": {
+              "color": "#1E88E5"
+          }
+        };
+        var rzp1 = new Razorpay(options);
+        rzp1.on('payment.failed', function (response){
+            alert("Payment Failed. Reason: " + response.error.description);
+        });
+        rzp1.open();
+        
+        payBtn.textContent = 'Pay Now';
+        payBtn.disabled = false;
+      });
+
+    } else if (paymentMethod === 'paytm') {
+      // 1. Create Paytm Order
+      var fd = new FormData();
+      fd.append('total_amount', totalAmount);
+
+      fetch('/api/create_paytm_order', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf },
+        body: fd
+      }).then(r => r.json()).then(data => {
+        if (!data.ok) {
+          alert('Error creating Paytm order: ' + data.msg);
+          payBtn.textContent = 'Pay Now';
+          payBtn.disabled = false;
+          return;
+        }
+
+        // Normally we load Paytm CheckoutJS and invoke it. 
+        // For demonstration, we'll verify immediately using the mock token.
+        // Alert to simulate the flow
+        alert("Paytm transaction initiated. Token: " + data.txnToken + "\n\nSimulating successful JS Checkout return...");
+
+        var verifyFd = new FormData();
+        verifyFd.append('order_id', data.order_id);
+        verifyFd.append('name', name);
+        verifyFd.append('address', address);
+        verifyFd.append('total_amount', totalAmount);
+
+        fetch('/api/verify_paytm', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrf },
+          body: verifyFd
+        }).then(r => r.json()).then(vData => {
+          if(vData.ok) {
+            localStorage.removeItem('cart');
+            window.location.href = '/order-success';
+          } else {
+            alert(vData.msg);
+          }
+        });
+
+      });
+    }
+  }
+</script>
+{% endblock %}

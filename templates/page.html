@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ pg['name'] + ' — ' if pg else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}{{ pg['body']|striptags|truncate(155) if pg else '' }}{% endblock %}
+
+{% block content %}
+{% if not pg %}
+<section class="section page-enter" style="padding-top:7rem; text-align:center;">
+  <div class="container" style="max-width:600px;">
+    <h2 class="display-lg" style="color:var(--primary); margin-bottom:1rem;">Page Not Found</h2>
+    <a href="{{ url_for('home') }}" class="gp-btn-primary">← Back to Blog</a>
+  </div>
+</section>
+{% else %}
+<article class="article-container page-enter">
+  <div class="article-header">
+    <div style="margin-bottom:1.5rem;">
+      <a href="{{ url_for('home') }}" class="gp-btn-secondary" style="font-size:13px; padding:0.4rem 0.8rem; border:none; background:transparent;">← Back to Blog</a>
+    </div>
+    
+    <div class="section-label" style="text-align:left;">PAGE</div>
+    <h1 class="display-lg" style="margin:0 0 1rem;">{{ pg['name'] }}</h1>
+  </div>
+
+  <div class="article-content">
+    {{ pg['body']|safe }}
+  </div>
+
+  {% if is_admin() %}
+  <div style="display:flex;gap:1rem;margin-top:3rem;padding-top:2rem;border-top:1px solid var(--isu-pale)">
+    <a href="{{ url_for('admin.admin_index', editpage=pg['id']) }}" class="gp-btn-secondary">✎ Edit Page</a>
+    <button class="gp-btn-secondary" id="delPageBtn" style="border-color:var(--error); color:var(--error);">✕ Delete Page</button>
+  </div>
+  {% endif %}
+</article>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if pg %}
+<script>
+var dpb = document.getElementById('delPageBtn');
+if (dpb) dpb.addEventListener('click', function() {
+  if (!confirm('Delete this page permanently?')) return;
+  fetch('/api/delete_page', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'id={{ pg["id"] }}'})
+    .then(r => r.json()).then(d => { if (d.ok) window.location.href = '/'; else showToast(d.msg, 'error'); });
+});
+</script>
+{% endif %}
+{% endblock %}

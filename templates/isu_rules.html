@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}ISU Rules & Testing Center — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}Official ISU figure skating rules, judging system handbooks, scale of values, and communications for the 2026/27 season and beyond.{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem;">
+  <div class="container">
+
+    <!-- Hero Banner -->
+    <div class="section-header">
+      <div class="section-label">Official Source · ISU.org</div>
+      <h1 class="section-title">Rules & Testing Center</h1>
+      <p class="section-subtitle">
+        All official ISU Figure Skating regulations, PDF handbooks, scale of values, and judging guidelines — extracted directly from <a href="https://www.isu.org/figure-skating-rules" target="_blank" style="color:var(--secondary); text-decoration:underline;">isu.org</a>.
+      </p>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="rule-tabs" id="ruleTabs">
+      <button class="rule-tab active" onclick="switchTab('tab-2026', this)" id="btn-tab-2026">⚡ 2026/27 Season</button>
+      <button class="rule-tab" onclick="switchTab('tab-archive', this)" id="btn-tab-archive">📚 Previous Rules</button>
+      <button class="rule-tab" onclick="switchTab('tab-judging', this)" id="btn-tab-judging">⚖️ Judging System</button>
+      <button class="rule-tab" onclick="switchTab('tab-icedance', this)" id="btn-tab-icedance">💃 Ice Dance</button>
+      <button class="rule-tab" onclick="switchTab('tab-forms', this)" id="btn-tab-forms">📋 Forms & Seminars</button>
+      <button class="rule-tab" onclick="switchTab('tab-communications', this)" id="btn-tab-communications">📡 Communications</button>
+    </div>
+
+    <!-- ===== TAB 1: 2026/27 SEASON ===== -->
+    <div id="tab-2026" class="rule-pane active">
+      <div class="rules-section-title">
+        <span class="rules-badge new">NEW</span>
+        <h2>2026/27 Season — Current & Effective Documents</h2>
+      </div>
+      <p style="color:var(--on-surface-variant); margin-bottom:2rem;">The following documents are officially in effect for the 2026/27 competitive season, sourced directly from the ISU.</p>
+
+      <div class="rule-card featured">
+        <div class="rule-card-meta"><span class="rule-date">10 Jun 2026</span><span class="rule-tag tag-new">New</span></div>
+        <h3>ISU Sports Rules — Figure Skating (Effective 12.06.2026)</h3>
+        <p>The comprehensive official rulebook for Single, Pair Skating and Ice Dance for the 2026/27 Olympic cycle. This is the primary reference document for all competitive figure skating.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Governance/Isu-Regulations/2026-FS---Pair-Sports-Rules-FINAL-20260513-1778685370-9916.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-card featured">
+        <div class="rule-card-meta"><span class="rule-date">03 Jul 2025</span><span class="rule-tag tag-governance">Governance</span></div>
+        <h3>ISU Constitution 2025</h3>
+        <p>The overarching constitutional document governing the International Skating Union, including eligibility rules, membership requirements, and congress structure.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Governance/ISU-Constitution/ISU-CONSTITUTION-2025-Rev-1755502332-414.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-card-meta"><span class="rule-date">20 May 2026</span><span class="rule-tag tag-new">New</span></div>
+        <h3>Handbook for Referees & Judges — Single and Pair Skating 2026/27</h3>
+        <p>The complete judging handbook for the new season. Covers all evaluation criteria, GOE guidelines, program component definitions, and panel procedures.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/Handbook-for-Referees-and-Judges-2026-27-1779278300-9402.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">21 Apr 2026</span><span class="rule-tag tag-qa">Q&A</span></div>
+          <h3>SP Q&A 1 (2026-27): Choreographic Elements</h3>
+          <p>Official clarifications on how choreographic elements are confirmed and evaluated under the new 2026/27 rules.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/QA1-SPTC-Choreoelements-1776773178-2054.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">19 May 2026</span><span class="rule-tag tag-qa">Q&A</span></div>
+          <h3>SP Q&A 2 (2026-27): Step Sequences Feature 5</h3>
+          <p>Clarification document on Step Sequence Feature 5 identification and calling procedures for the Technical Panel.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/QA2-SPTC-1779180084-8133.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB 2: PREVIOUS RULES ===== -->
+    <div id="tab-archive" class="rule-pane" style="display:none;">
+      <div class="rules-section-title">
+        <h2>Previous & Archived Rules</h2>
+      </div>
+      <p style="color:var(--on-surface-variant); margin-bottom:2rem;">Historical documents and rules from previous competitive seasons.</p>
+
+      <div class="rule-card">
+        <div class="rule-card-meta"><span class="rule-date">17 Sep 2024</span><span class="rule-tag tag-archive">2024–25</span></div>
+        <h3>Special Regulations & Technical Rules — Single/Pair and Ice Dance</h3>
+        <p>The special regulations for the 2024/25 season, covering entry requirements, minimum technical scores, program requirements and age eligibility rules.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Governance/ISU-Constitution/2024-Special-Regulation-SP-and-Ice-Dance-and-Technical-Rules-SP--and-ID-Final-rev1741156106-8881.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-card-meta"><span class="rule-date">21 Jul 2025</span><span class="rule-tag tag-archive">2025–26</span></div>
+        <h3>Handbook for Referees & Judges — Single and Pair Skating 2025/26</h3>
+        <p>The Referee and Judging handbook applicable for the 2025/26 competitive season. Useful for comparison with the updated 2026/27 version.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/Handbook-for-Referees-and-Judges-2025-26-July-1753088479-0379.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">01 Oct 2025</span><span class="rule-tag tag-qa">Q&A</span></div>
+          <h3>SP Q&A 1 (2025-26): Pair Jump Clarification</h3>
+          <p>Official clarification on Pair Skating jump elements identification for the 2025/26 season.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/Q-A-1-2025-26-Pair-Jump-1759303403-4233.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">07 Oct 2025</span><span class="rule-tag tag-qa">Q&A</span></div>
+          <h3>SP Q&A 2 (2025-26): Spins Clarification</h3>
+          <p>Clarifications on spin identification procedures for both Singles and Pairs in the 2025/26 season.</p>
+          <a href="https://isudam.blob.core.windows.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/SP-QA-2-2025-26-Spins-1759827932-8102.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB 3: JUDGING SYSTEM ===== -->
+    <div id="tab-judging" class="rule-pane" style="display:none;">
+      <div class="rules-section-title">
+        <h2>ISU Judging System — Handbooks & Evaluation Criteria</h2>
+      </div>
+
+      <div class="alert" style="background:var(--surface-container-low); border:1px solid var(--isu-pale); color:var(--on-surface-variant);">
+        <strong style="color:var(--primary);">How the ISU Judging System works:</strong> Each element receives a base value plus a Grade of Execution (GOE) on a scale of <strong>-5 to +5</strong>. Three Program Components (Composition, Presentation, Skating Skills) are scored from <strong>0.25 to 10</strong>. A panel of up to 9 Judges provide trimmed-mean scores. The Technical Panel (Controller + 2 Specialists) identifies and calls elements independently.
+      </div>
+
+      <div class="rule-card">
+        <div class="rule-card-meta"><span class="rule-date">05 Jun 2025</span></div>
+        <h3>Thinking Words for Program Components Scale</h3>
+        <p>The official ISU guide describing the verbal descriptors ("thinking words") judges use when calibrating scores across the Composition, Presentation, and Skating Skills components on a 0.25–10 scale.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/SP-Thinking-words-for-Program-Components-scale-1749110475-6223.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">05 Aug 2024</span></div>
+          <h3>Program Components Chart</h3>
+          <p>Visual chart for Single & Pairs, Ice Dance and Synchronized Skating program component criteria.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/Componentschartupdated2024July086344800_17327068456450.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">29 Jul 2024</span></div>
+          <h3>Composition, Presentation & Skating Skills Charts</h3>
+          <p>Detailed breakdown of the three program component criteria for Singles & Pairs judging.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/SPComponentCharts2024064619000_17327068477733.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">29 Jul 2024</span></div>
+          <h3>Deductions: Who is Responsible?</h3>
+          <p>Reference chart defining which Official (Referee, Technical Controller, Judge) is responsible for each type of deduction in Single & Pair Skating.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/SPWhoisresponsibleforDeductions202425V3010384600_17327068488063.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">28 Jul 2025</span></div>
+          <h3>Technical Panel Handbook — Singles 2025/26</h3>
+          <p>The complete handbook for Technical Specialists and Technical Controllers in Single Skating competitions.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/TP-Handbook-Singles-25-26-FINAL-21-July-2025-update-25-July-1753703999-2708.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">28 Jul 2025</span></div>
+          <h3>Technical Panel Handbook — Pair Skating 2025/26</h3>
+          <p>The complete Technical Panel handbook for Pair Skating competitions including throw jumps, lifts, and death spirals.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/TP-Handbook-Pair-Skating-2025-26-25July-1754657063-3208.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">21 Jul 2025</span></div>
+          <h3>Round Table Discussion Guidelines</h3>
+          <p>Structure and guidelines for Judges' Round Table Discussions (RTD) held at competitions.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Single-&-Pair-Skating/SP-New-RTD-guidelines-16-July-2025-1753088297-5459.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB 4: ICE DANCE ===== -->
+    <div id="tab-icedance" class="rule-pane" style="display:none;">
+      <div class="rules-section-title">
+        <h2>Ice Dance — Handbooks, Communications & Pattern Dances</h2>
+      </div>
+
+      <div class="rule-card featured">
+        <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span><span class="rule-tag tag-new">2025–26</span></div>
+        <h3>ISU Communication 2716 — Ice Dance Level Requirements</h3>
+        <p>Technical requirements for establishing Levels of Difficulty in Ice Dance elements for the 2025/26 season.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2716---ID-Levels---Requirements-for-Technical-Rules-2025-26-updated-Aug13-1759232286-5633.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2625 — Novice Guidelines 2025/26</h3>
+          <p>Guidelines specifically for International Novice Ice Dance competitions.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2700-ID-Novice-Communication-updated-June2-1759232286-9826.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2705 — Scale of Values (Ice Dance)</h3>
+          <p>Ice Dance Scale of Values valid as of July 1, 2025. Base values for all lifts, twizzles, spins and step sequences.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2705-ISU-SOV-IceDance-2025-26-updated-June2-1759232287-4354.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2704 — Technical Rules (Ice Dance)</h3>
+          <p>Technical requirements with ongoing validity, effective July 1st, 2025 — the foundational Ice Dance technical rulebook.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2704-ID-Requirements-for-Technical-Rules-season-2025-26-updated-post-Frankfurt-final-1759232287-8943.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">29 Jul 2024</span></div>
+          <h3>Composition, Presentation & Skating Skills Charts (Ice Dance)</h3>
+          <p>The three program component evaluation charts specifically formatted for Ice Dance couples.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/SPComponentCharts20240387849001741256145-036.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+      </div>
+
+      <h3 style="margin-top:2rem; margin-bottom:1rem; color:var(--primary); font-family:var(--font-heading); font-size: 24px;">Pattern Dances — Descriptions & Diagrams</h3>
+      <div class="rule-grid-3">
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/ArgentineTangochartanddescription080769100_17327095187713.pdf" target="_blank" class="pattern-card">Argentine Tango <span>Chart & Description ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/ArgetineTangoKeyPointsandTimingChart025815300_17327095196271.pdf" target="_blank" class="pattern-card">Argentine Tango <span>Key Points & Timing ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/MidnightBluesdescriptionchart202122season069244800_17327095196489.pdf" target="_blank" class="pattern-card">Midnight Blues <span>Description Chart ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/Bluesdiagram011577300_17327095201025.pdf" target="_blank" class="pattern-card">Blues <span>Diagram ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/TeaTimeFoxtrotDiagramLadyandMan042303500_17327095218505.pdf" target="_blank" class="pattern-card">Tea-Time Foxtrot <span>Diagram ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/FinnstepDiagramManandLady085347900_17327095214858.pdf" target="_blank" class="pattern-card">Finnstep <span>Diagram ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/TangoCanasta071163300_17327112022915.pdf" target="_blank" class="pattern-card">Tango Canasta <span>↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/Quickstep036006100_17327112032363.pdf" target="_blank" class="pattern-card">Quickstep <span>↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/Foxtrot082484400_17327112032046.pdf" target="_blank" class="pattern-card">Foxtrot <span>↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/EuropeanWaltzDescriptionChart048341700_17327112048885.pdf" target="_blank" class="pattern-card">European Waltz <span>Description ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/StarlightWaltzDescriptionChart005369500_17327112059879.pdf" target="_blank" class="pattern-card">Starlight Waltz <span>Description ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/7WILLOWWALTZupdated60518020007900_17327112071821.pdf" target="_blank" class="pattern-card">Willow Waltz <span>Basic Novice ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/1FourteenStep079819900_17327112079775.pdf" target="_blank" class="pattern-card">Fourteen Step <span>Int. Novice ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/21Tango092124500_17327112087207.pdf" target="_blank" class="pattern-card">Tango <span>Int. Novice ↗</span></a>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/26TangoFiesta003967200_17327112102214.pdf" target="_blank" class="pattern-card">Tango Fiesta <span>Basic Novice ↗</span></a>
+      </div>
+    </div>
+
+    <!-- ===== TAB 5: FORMS & SEMINARS ===== -->
+    <div id="tab-forms" class="rule-pane" style="display:none;">
+      <div class="rules-section-title">
+        <h2>Official Forms, Reports & Seminar Documents</h2>
+      </div>
+      <p style="color:var(--on-surface-variant); margin-bottom:2rem;">Templates and guidelines used by officials at ISU-sanctioned events.</p>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">28 Jul 2025</span><span class="rule-tag tag-doc">DOCX</span></div>
+          <h3>Declaration Form 2025/26</h3>
+          <p>Official declaration form for officials at ISU-sanctioned events.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Forms,-Reports-&-Seminars/Declaration-form-25-26-final-1753710773-7754.docx" target="_blank" class="rule-pdf-btn small">Download DOCX</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">28 Jul 2025</span></div>
+          <h3>Guideline — Judges Meeting (Single & Pair Skating)</h3>
+          <p>Structure and agenda guidelines for the official Judges Meeting held before each ISU competition.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Forms,-Reports-&-Seminars/IJM-guideline-1753704156-3885.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">25 Jul 2025</span></div>
+          <h3>Structure of Judges Round Table Discussion</h3>
+          <p>Guidelines for the structure and conduct of Round Table Discussions between judges.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Forms,-Reports-&-Seminars/SP-New-RTD-guidelines-16-July-2025-1753455866-9795.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">16 Jul 2024</span></div>
+          <h3>Guideline — Judges Meeting (Ice Dance)</h3>
+          <p>The equivalent Judges Meeting guideline specifically tailored for Ice Dance competitions.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/GuidelineJudgesMeetingIceDance2019015057800_17327080686391.zip" target="_blank" class="rule-pdf-btn small">Download ZIP</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">24 Jul 2019</span><span class="rule-tag tag-doc">DOCX</span></div>
+          <h3>Judges Feedback on Referee & Technical Controller</h3>
+          <p>The form used by Judges to provide feedback on the performance of the Referee and Technical Controller at events.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/sportrulesdisciplinecategory/pdf/JudgesFeedbackonRefereeTechnicalControllerForm070538700_17327080671989.docx" target="_blank" class="rule-pdf-btn small">Download DOCX</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB 6: COMMUNICATIONS ===== -->
+    <div id="tab-communications" class="rule-pane" style="display:none;">
+      <div class="rules-section-title">
+        <h2>ISU Communications — Regulatory Updates</h2>
+      </div>
+      <p style="color:var(--on-surface-variant); margin-bottom:2rem;">Official ISU Communications are the mechanism through which rule updates, scale of values, and technical guidelines are formally announced and distributed to Member Federations.</p>
+
+      <div class="alert" style="background:var(--surface-container-low); border:1px solid var(--isu-pale); margin-bottom:2rem;">
+        <p style="margin:0; color:var(--on-surface-variant); font-size:0.9rem;">📡 Browse the full library of ISU Communications at the official archive: <a href="https://www.isu.org/isu-communications/" target="_blank" style="color:var(--secondary); font-weight:600;">www.isu.org/isu-communications/</a></p>
+      </div>
+
+      <div class="rule-card featured">
+        <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span><span class="rule-tag tag-new">Ice Dance</span></div>
+        <h3>Communication 2716 — Ice Dance Technical Rules 2025/26</h3>
+        <p>Level requirements for all Ice Dance elements, valid for the 2025/26 season. Updated post-Frankfurt Grand Prix Final.</p>
+        <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2716---ID-Levels---Requirements-for-Technical-Rules-2025-26-updated-Aug13-1759232286-5633.pdf" target="_blank" class="rule-pdf-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download PDF
+        </a>
+      </div>
+
+      <div class="rule-grid-2">
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2705 — Scale of Values (Ice Dance 2025/26)</h3>
+          <p>Official base values for all Ice Dance elements valid from July 1, 2025.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2705-ISU-SOV-IceDance-2025-26-updated-June2-1759232287-4354.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2704 — Ice Dance Technical Rules (ongoing)</h3>
+          <p>Technical requirements with ongoing validity, effective from July 1st, 2025.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2704-ID-Requirements-for-Technical-Rules-season-2025-26-updated-post-Frankfurt-final-1759232287-8943.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">30 Sep 2025</span></div>
+          <h3>Communication 2625 — Novice Ice Dance 2025/26</h3>
+          <p>Guidelines for International Novice Ice Dance competitions.</p>
+          <a href="https://isu-d8g8b4b7ece7aphs.a03.azurefd.net/isudamcontainer/CMS/Corporate-Site/Sports-Rules/Figure-Skating-Rules/Handbooks-Ice-Dance/2700-ID-Novice-Communication-updated-June2-1759232286-9826.pdf" target="_blank" class="rule-pdf-btn small">Download PDF</a>
+        </div>
+        <div class="rule-card">
+          <div class="rule-card-meta"><span class="rule-date">Live</span></div>
+          <h3>Submit a Rule Change Proposal</h3>
+          <p>ISU Members and officials can submit formal rule change proposals via the official ISU portal.</p>
+          <a href="https://apps.powerapps.com/play/e/6516162e-4f79-ec46-9153-7c5562822745/a/cabb088d-e440-4821-a918-9ad186f9ab0c?tenantId=f6b5b5c3-eb4a-40b4-839b-4851857f1d9c&hint=9c927e59-b81f-49b8-bf44-1289c727fb31" target="_blank" class="rule-pdf-btn small">Open Portal ↗</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  function switchTab(tabId, btn) {
+    document.querySelectorAll('.rule-pane').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.rule-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).style.display = 'block';
+    btn.classList.add('active');
+  }
+</script>
+{% endblock %}

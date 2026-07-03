@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Marketplace Demo — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter" style="padding-top:7rem; max-width: 1200px; margin: 0 auto;">
+  <a href="{{ url_for('admin.admin_index') }}" class="gp-btn-secondary" style="font-size:13px; padding:0.4rem 0.8rem; border:none; background:transparent; margin-bottom:1.5rem; display:inline-block;">← Back to Admin</a>
+  
+  <div class="section-label">MARKETPLACE DEMO</div>
+  <h1 class="display-lg" style="margin-bottom: 2rem;">
+    <span style="color:var(--secondary)">🛒</span> Sir's Skates Marketplace
+  </h1>
+
+  <div style="display:grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items:start;">
+    
+    <!-- Products Section -->
+    <div>
+      <h2 class="headline-md" style="margin-bottom: 1.5rem;">Professional Gear</h2>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:1.5rem;">
+        
+        <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding: 1.5rem; display:flex; flex-direction:column; box-shadow:var(--shadow-sm);">
+          <div style="font-size: 4rem; text-align: center; margin-bottom: 1rem;">⛸️</div>
+          <h3 class="headline-md" style="font-size: 1.2rem; margin-bottom:0.5rem;">Pro Freestyle Skates</h3>
+          <p class="body-md" style="color:var(--on-surface-variant); margin-bottom: 1.5rem; flex:1;">Elite level boots with premium steel blades. Custom fit by Sir.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: bold; color:var(--primary); font-size:1.2rem;">₹25,000</span>
+            <button class="gp-btn-secondary add-to-cart" style="padding:0.4rem 0.8rem; font-size:13px;" data-id="1" data-name="Pro Freestyle Skates" data-price="25000">Add to Cart</button>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding: 1.5rem; display:flex; flex-direction:column; box-shadow:var(--shadow-sm);">
+          <div style="font-size: 4rem; text-align: center; margin-bottom: 1rem;">🛡️</div>
+          <h3 class="headline-md" style="font-size: 1.2rem; margin-bottom:0.5rem;">Crash Pads Set</h3>
+          <p class="body-md" style="color:var(--on-surface-variant); margin-bottom: 1.5rem; flex:1;">Essential protection for learning new jumps. Knee and hip guards.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: bold; color:var(--primary); font-size:1.2rem;">₹4,500</span>
+            <button class="gp-btn-secondary add-to-cart" style="padding:0.4rem 0.8rem; font-size:13px;" data-id="2" data-name="Crash Pads Set" data-price="4500">Add to Cart</button>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding: 1.5rem; display:flex; flex-direction:column; box-shadow:var(--shadow-sm);">
+          <div style="font-size: 4rem; text-align: center; margin-bottom: 1rem;">🎒</div>
+          <h3 class="headline-md" style="font-size: 1.2rem; margin-bottom:0.5rem;">Rink Duffel Bag</h3>
+          <p class="body-md" style="color:var(--on-surface-variant); margin-bottom: 1.5rem; flex:1;">Breathable, water-resistant bag with blade compartments.</p>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: bold; color:var(--primary); font-size:1.2rem;">₹3,200</span>
+            <button class="gp-btn-secondary add-to-cart" style="padding:0.4rem 0.8rem; font-size:13px;" data-id="3" data-name="Rink Duffel Bag" data-price="3200">Add to Cart</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Fitment & Video Section -->
+      <h2 class="headline-md" style="margin: 3rem 0 1.5rem;">Fitment & Look Demo</h2>
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); overflow: hidden; box-shadow:var(--shadow-sm);">
+        <div style="padding-top: 56.25%; position: relative;">
+          <!-- Using a generic public YouTube video regarding ice skates for demonstration -->
+          <iframe style="position: absolute; top:0; left:0; width:100%; height:100%; border:none;" 
+                  src="https://www.youtube.com/embed/8A8z7E8T-_g?autoplay=0&mute=1" 
+                  title="How to fit ice skates" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen>
+          </iframe>
+        </div>
+        <div style="padding: 1.5rem;">
+          <h3 class="headline-md" style="font-size: 1.2rem; margin-bottom: 0.5rem;">How to get the perfect fit</h3>
+          <p class="body-md" style="color:var(--on-surface-variant);">Watch this guide to understand boot stiffness, blade mounting, and ensuring your heel stays locked during jumps.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cart & Checkout -->
+    <div>
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding: 2rem; position: sticky; top: 100px; box-shadow:var(--shadow-md);">
+        <h2 class="headline-md" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+          Your Cart <span id="cartCount" class="filter-pill active" style="pointer-events:none; padding:0.25rem 0.75rem; font-size:14px;">0</span>
+        </h2>
+        
+        <div id="cartItems" style="min-height: 100px; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+          <div style="color:var(--on-surface-variant); font-size:14px; text-align:center; padding-top:2rem;">Your cart is empty.</div>
+        </div>
+
+        <div style="border-top: 1px solid var(--isu-pale); padding-top: 1rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: bold; font-size: 1.2rem;">Total</span>
+          <span id="cartTotal" style="font-weight: bold; font-size: 1.5rem; color: var(--primary);">₹0</span>
+        </div>
+
+        <button id="rzpCheckoutBtn" class="gp-btn-primary" disabled style="width:100%; justify-content:center; padding: 1rem; font-size: 1rem;">
+          Checkout with Razorpay
+        </button>
+        <p style="text-align: center; font-size: 11px; color: var(--on-surface-variant); margin-top: 1rem;">
+          UPI, Cards & Net Banking Supported
+        </p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Razorpay Mock Modal -->
+<div id="rzpModal" class="lb-overlay" style="display:none; z-index: 9999; align-items:center; justify-content:center; background:rgba(255,255,255,0.8); backdrop-filter:blur(10px);">
+  <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-xl); overflow:hidden; width:100%; max-width:400px; box-shadow:var(--shadow-lg); text-align:center;">
+    <div style="padding: 1.5rem; background: var(--surface-container-low); border-bottom:1px solid var(--isu-pale);">
+      <h3 class="headline-md" style="margin: 0; font-size:18px;">Razorpay Test Checkout</h3>
+    </div>
+    <div style="padding: 3rem 2rem;">
+      <div class="display-lg" style="margin-bottom: 1rem; color: var(--primary);">₹<span id="rzpAmountDisplay">0</span></div>
+      <p style="color: var(--on-surface-variant); margin-bottom: 2rem;">Select Payment Method</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <button class="gp-btn-secondary" style="justify-content:center;" onclick="completePayment('UPI')">UPI</button>
+        <button class="gp-btn-secondary" style="justify-content:center;" onclick="completePayment('Card')">Card</button>
+        <button class="gp-btn-secondary" style="grid-column: span 2; justify-content:center;" onclick="completePayment('Net Banking')">Net Banking</button>
+      </div>
+      <button class="gp-btn-secondary" style="margin-top: 2rem; border:none; background:transparent; font-size:13px;" onclick="document.getElementById('rzpModal').style.display='none'">Cancel Payment</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let cart = [];
+
+  function updateCartUI() {
+    const itemsContainer = document.getElementById('cartItems');
+    const totalEl = document.getElementById('cartTotal');
+    const countEl = document.getElementById('cartCount');
+    const checkoutBtn = document.getElementById('rzpCheckoutBtn');
+
+    if (cart.length === 0) {
+      itemsContainer.innerHTML = '<div style="color:var(--on-surface-variant); font-size:14px; text-align:center; padding-top:2rem;">Your cart is empty.</div>';
+      totalEl.textContent = '₹0';
+      countEl.textContent = '0';
+      checkoutBtn.disabled = true;
+      return;
+    }
+
+    let html = '';
+    let total = 0;
+    cart.forEach((item, idx) => {
+      total += item.price;
+      html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background: var(--surface-container-lowest); border:1px solid var(--isu-pale); padding: 0.75rem 1rem; border-radius: var(--radius-sm);">
+          <div>
+            <div style="font-size: 14px; font-weight:600; color:var(--primary);">${item.name}</div>
+            <div style="color:var(--on-surface-variant); font-size: 13px;">₹${item.price.toLocaleString('en-IN')}</div>
+          </div>
+          <button class="gp-btn-secondary" style="padding: 0.3rem 0.6rem; font-size:12px; border:none; background:transparent;" onclick="removeFromCart(${idx})">✕</button>
+        </div>
+      `;
+    });
+
+    itemsContainer.innerHTML = html;
+    totalEl.textContent = '₹' + total.toLocaleString('en-IN');
+    countEl.textContent = cart.length;
+    checkoutBtn.disabled = false;
+    document.getElementById('rzpAmountDisplay').textContent = total.toLocaleString('en-IN');
+  }
+
+  function removeFromCart(idx) {
+    cart.splice(idx, 1);
+    updateCartUI();
+  }
+
+  document.querySelectorAll('.add-to-cart').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = btn.getAttribute('data-id');
+      const name = btn.getAttribute('data-name');
+      const price = parseInt(btn.getAttribute('data-price'));
+      cart.push({id, name, price});
+      updateCartUI();
+      showToast('Added to cart');
+      
+      if(typeof gsap !== 'undefined') {
+        gsap.fromTo(btn, {scale: 1.1}, {scale: 1, duration: 0.2});
+      }
+    });
+  });
+
+  document.getElementById('rzpCheckoutBtn').addEventListener('click', () => {
+    document.getElementById('rzpModal').style.display = 'flex';
+  });
+
+  function completePayment(method) {
+    document.getElementById('rzpModal').style.display = 'none';
+    cart = [];
+    updateCartUI();
+    
+    showToast('Payment successful! (' + method + ')');
+    
+    // Simulate navigation to a success state by showing a message
+    setTimeout(() => alert("Demo Marketplace Payment Succeeded! \nOrder placed for Sir's Skates."), 500);
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,106 @@
+<!-- Glacial Precision Floating Pill Navbar -->
+<header class="gp-header" id="siteHeader">
+  <div class="gp-nav">
+    <a href="{{ url_for('home') }}" class="gp-logo">On Ice</a>
+
+    <nav class="gp-links">
+      <a href="{{ url_for('home') }}" class="gp-link {% if request.endpoint == 'home' %}active{% endif %}">Journal</a>
+      <a href="{{ url_for('shop') }}" class="gp-link {% if request.endpoint == 'shop' %}active{% endif %}">Shop</a>
+      <a href="{{ url_for('gallery') }}" class="gp-link {% if request.endpoint == 'gallery' %}active{% endif %}">Gallery</a>
+      <a href="{{ url_for('techniques') }}" class="gp-link {% if request.endpoint == 'techniques' %}active{% endif %}">Techniques</a>
+      <a href="{{ url_for('rules') }}" class="gp-link {% if request.endpoint == 'rules' %}active{% endif %}">Rules</a>
+      <a href="{{ url_for('contact') }}" class="gp-link {% if request.endpoint == 'contact' %}active{% endif %}">Contact</a>
+      <a href="{{ url_for('about') }}" class="gp-link {% if request.endpoint == 'about' %}active{% endif %}">About</a>
+      {% for pg in nav_pages %}
+      <a href="{{ url_for('custom_page', page_id=pg['id']) }}" class="gp-link">{{ pg['name'] }}</a>
+      {% endfor %}
+    </nav>
+
+    <div class="gp-actions">
+      <a href="{{ url_for('checkout') }}" class="gp-icon-btn" id="cartBtn" title="Cart">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <span id="cartBadge" class="gp-badge"></span>
+      </a>
+      
+      {% set sess = get_sess() %}
+      {% if sess %}
+        <a href="{{ url_for('profile') }}" class="gp-icon-btn" title="Profile">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </a>
+        {% if sess.role == 'admin' %}
+        <a href="{{ url_for('admin.admin_index') }}" class="gp-link" style="color:var(--secondary);font-size:0.8rem;">Admin</a>
+        {% endif %}
+        <button class="gp-icon-btn" id="logoutBtn" title="Logout">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      {% else %}
+        <button class="gp-link" id="loginBtn">Sign In</button>
+        <button class="gp-btn-primary" id="registerBtn">Join</button>
+      {% endif %}
+      
+      <!-- Mobile menu toggle -->
+      <button class="gp-mobile-toggle" id="navToggle" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Mobile nav drawer -->
+<div class="gp-drawer-backdrop" id="mobileBackdrop"></div>
+<nav class="gp-drawer" id="mobileDrawer">
+  <button class="gp-drawer-close" id="mobileClose" aria-label="Close menu">✕</button>
+  <a href="{{ url_for('home') }}" class="gp-link {% if request.endpoint == 'home' %}active{% endif %}">Journal</a>
+  <a href="{{ url_for('shop') }}" class="gp-link {% if request.endpoint == 'shop' %}active{% endif %}">Shop</a>
+  <a href="{{ url_for('gallery') }}" class="gp-link {% if request.endpoint == 'gallery' %}active{% endif %}">Gallery</a>
+  <a href="{{ url_for('techniques') }}" class="gp-link {% if request.endpoint == 'techniques' %}active{% endif %}">Techniques</a>
+  <a href="{{ url_for('rules') }}" class="gp-link {% if request.endpoint == 'rules' %}active{% endif %}">Rules</a>
+  <a href="{{ url_for('contact') }}" class="gp-link {% if request.endpoint == 'contact' %}active{% endif %}">Contact</a>
+  <a href="{{ url_for('about') }}" class="gp-link {% if request.endpoint == 'about' %}active{% endif %}">About</a>
+  {% for pg in nav_pages %}
+  <a href="{{ url_for('custom_page', page_id=pg['id']) }}" class="gp-link">{{ pg['name'] }}</a>
+  {% endfor %}
+  <div class="gp-drawer-actions">
+    {% set sess = get_sess() %}
+    {% if sess %}
+      <a href="{{ url_for('profile') }}" class="gp-btn-secondary" style="text-align:center;">{{ sess.username }}</a>
+      {% if sess.role == 'admin' %}
+      <a href="{{ url_for('admin.admin_index') }}" class="gp-btn-primary" style="text-align:center;">Admin</a>
+      {% endif %}
+    {% else %}
+      <button class="gp-btn-secondary" id="mobileLoginBtn">Sign In</button>
+      <button class="gp-btn-primary" id="mobileRegisterBtn">Join</button>
+    {% endif %}
+  </div>
+</nav>
+<script>
+(function() {
+  // Scroll behavior — shrink nav on scroll
+  var header = document.getElementById('siteHeader');
+  if (header) {
+    window.addEventListener('scroll', function() {
+      if (window.scrollY > 24) {
+        header.classList.add('scrolled');
+      } else {
+        header.classList.remove('scrolled');
+      }
+    }, {passive: true});
+  }
+
+  // Mobile drawer
+  var toggle   = document.getElementById('navToggle');
+  var drawer   = document.getElementById('mobileDrawer');
+  var backdrop = document.getElementById('mobileBackdrop');
+  var close    = document.getElementById('mobileClose');
+  function open()  { drawer.classList.add('open'); backdrop.classList.add('open'); document.body.style.overflow = 'hidden'; }
+  function shut()  { drawer.classList.remove('open'); backdrop.classList.remove('open'); document.body.style.overflow = ''; }
+  if (toggle) toggle.addEventListener('click', open);
+  if (close) close.addEventListener('click', shut);
+  if (backdrop) backdrop.addEventListener('click', shut);
+  // Wire mobile auth buttons
+  var ml = document.getElementById('mobileLoginBtn');
+  var mr = document.getElementById('mobileRegisterBtn');
+  if (ml) ml.addEventListener('click', function() { shut(); document.getElementById('loginBtn') && document.getElementById('loginBtn').click(); });
+  if (mr) mr.addEventListener('click', function() { shut(); document.getElementById('registerBtn') && document.getElementById('registerBtn').click(); });
+})();
+</script>

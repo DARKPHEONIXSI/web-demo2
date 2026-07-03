@@ -1,0 +1,756 @@
+{% extends "base.html" %}
+{% block title %}Admin — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<div style="display:flex; min-height:100vh; padding-top:60px;">
+  <!-- Sidebar -->
+  <aside style="width:250px; background:var(--surface-white); border-right:1px solid var(--isu-pale); padding:2rem 1rem; position:fixed; top:60px; bottom:0; overflow-y:auto;">
+    <div class="section-label" style="padding:0 1rem; margin-bottom:1rem;">DASHBOARD</div>
+    {% set nav_items = [
+      ('dashboard', 'dashboard', 'Overview'),
+      ('posts', 'article', 'Posts'),
+      ('new_post', 'edit_square', 'New Post'),
+      ('techniques', 'school', 'Techniques'),
+      ('gallery', 'photo_library', 'Gallery'),
+      ('pages', 'description', 'Pages'),
+      ('products', 'shopping_bag', 'Shop Products'),
+      ('media', 'perm_media', 'Media Library'),
+      ('messages', 'mail', 'Messages' ~ (' (' ~ unread_count ~ ')' if unread_count else '')),
+      ('settings', 'settings', 'Settings'),
+      ('users', 'group', 'Users'),
+    ] %}
+    <nav style="display:flex; flex-direction:column; gap:0.25rem;">
+      {% for key, icon, label in nav_items %}
+      <a href="{{ url_for('admin.admin_index', sec=key) }}" 
+         style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem; border-radius:var(--radius); text-decoration:none; color:{% if sec == key %}var(--primary){% else %}var(--on-surface-variant){% endif %}; background:{% if sec == key %}rgba(30,136,229,0.05){% else %}transparent{% endif %}; font-weight:{% if sec == key %}600{% else %}500{% endif %}; transition:var(--transition);">
+        <span class="material-symbols-outlined" style="font-size:20px;">{{ icon }}</span>
+        {{ label }}
+      </a>
+      {% endfor %}
+    </nav>
+
+    <div style="margin-top:auto; padding-top:2rem;">
+      <a href="{{ url_for('home') }}" style="display:block; padding:0.75rem 1rem; color:var(--on-surface-variant); text-decoration:none; font-weight:500;">← View Blog</a>
+      <a href="{{ url_for('auth.logout') }}" style="display:block; padding:0.75rem 1rem; color:var(--error); text-decoration:none; font-weight:500;">Logout</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main style="flex:1; margin-left:250px; padding:3rem; max-width:1200px;">
+
+  {# ── DASHBOARD ──────────────────────────────────────────── #}
+  {% if sec == 'dashboard' %}
+  <div>
+    <h2 class="display-lg" style="margin-bottom:2rem; font-size:32px;">Overview</h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:3rem;">
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
+        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ post_count }}</div>
+        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Posts</div>
+      </div>
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
+        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ tech_count }}</div>
+        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Techniques</div>
+      </div>
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
+        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ product_count }}</div>
+        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Products</div>
+      </div>
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
+        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ gallery_count }}</div>
+        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Gallery</div>
+      </div>
+      <div style="background:var(--surface-white); border:1px solid {% if unread_count %}var(--secondary){% else %}var(--isu-pale){% endif %}; border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
+        <div class="display-lg" style="font-size:36px; color:{% if unread_count %}var(--secondary){% else %}var(--primary){% endif %}; margin-bottom:0.5rem;">{{ unread_count }}</div>
+        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Unread Msgs</div>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+      <a href="{{ url_for('admin.admin_index', sec='new_post') }}" class="gp-btn-primary">+ New Post</a>
+      <a href="{{ url_for('admin.admin_index', sec='techniques') }}" class="gp-btn-secondary">Manage Techniques</a>
+      <a href="{{ url_for('admin.admin_index', sec='settings') }}" class="gp-btn-secondary">Site Settings</a>
+    </div>
+
+    <div style="margin-top:4rem;">
+      <h3 class="headline-md" style="margin-bottom:1.5rem;">Recent Posts</h3>
+      <div style="display:flex; flex-direction:column; gap:1rem;">
+        {% for p in posts[:5] %}
+        <div style="display:flex; align-items:center; justify-content:space-between; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+          <div>
+            <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ p.title }}</div>
+            <div style="font-size:13px; color:var(--on-surface-variant);">{{ fmt_date(p['post_date']) }} · {{ p.read_time }} min read {{ '· 📌' if p['pinned'] else '' }}</div>
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <a href="{{ url_for('admin.admin_index', edit=p['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;">✎ Edit</a>
+            <a href="{{ url_for('post_detail', post_id=p['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" target="_blank">↗ View</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── POSTS LIST ─────────────────────────────────────────── #}
+  {% elif sec == 'posts' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">All Posts</h2>
+      <a href="{{ url_for('admin.admin_index', sec='new_post') }}" class="gp-btn-primary">+ New Post</a>
+    </div>
+    {% if not posts %}
+    <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+      <h3 class="headline-md">No Posts Yet</h3>
+    </div>
+    {% else %}
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      {% for p in posts %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        {% if p['pinned'] %}<span style="font-size:20px; margin-right:1rem;">📌</span>{% endif %}
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ p.title }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);">{{ fmt_date(p['post_date']) }} · ⏱ {{ p.read_time }} min {{ '· 📌' if p['pinned'] else '' }}</div>
+        </div>
+        {% if p['status'] == 'draft' %}
+        <span class="filter-pill active" style="margin-right:1rem; pointer-events:none; padding:0.2rem 0.6rem; font-size:11px;">DRAFT</span>
+        {% endif %}
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+          <a href="{{ url_for('admin.admin_index', edit=p['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;">✎ Edit</a>
+          <a href="{{ url_for('post_detail', post_id=p['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" target="_blank">↗</a>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" onclick="togglePin('{{ p.id }}')">📌</button>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" data-title="{{ p.title }}" onclick="deletePost('{{ p.id }}', this.dataset.title)">✕</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── POST EDITOR ────────────────────────────────────────── #}
+  {% elif sec in ('new_post', 'edit_post') %}
+  <div style="max-width:800px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">{{ 'Edit Post' if edit_post else 'New Post' }}</h2>
+      <a href="{{ url_for('admin.admin_index', sec='posts') }}" class="gp-btn-secondary">← Posts</a>
+    </div>
+    <div id="saveMsg"></div>
+    
+    <div class="form-group">
+      <label class="form-label">Title *</label>
+      <input class="form-input" id="pTitle" value="{{ edit_post.title if edit_post else '' }}" placeholder="Post title">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Excerpt (optional)</label>
+      <textarea class="form-textarea" id="pExcerpt" rows="2" placeholder="Short summary…">{{ edit_post.excerpt if edit_post else '' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Body *</label>
+      <div style="border:1px solid var(--isu-pale); border-radius:var(--radius-lg); background:var(--surface-white); overflow:hidden;">
+        <div style="display:flex; gap:0.25rem; padding:0.5rem; border-bottom:1px solid var(--isu-pale); background:var(--surface-container-low); flex-wrap:wrap;">
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('bold')"><b>B</b></button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('italic')"><i>I</i></button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('underline')"><u>U</u></button>
+          <div style="width:1px; background:var(--isu-pale); margin:0 0.25rem;"></div>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock('h2')">H2</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock('h3')">H3</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock('p')">¶</button>
+          <div style="width:1px; background:var(--isu-pale); margin:0 0.25rem;"></div>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('insertUnorderedList')">• List</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('insertOrderedList')">1. List</button>
+          <div style="width:1px; background:var(--isu-pale); margin:0 0.25rem;"></div>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="wrapSel('blockquote')">❝</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt('removeFormat')">✕ Fmt</button>
+        </div>
+        <div id="pBody" contenteditable="true" style="padding:1.5rem; min-height:300px; outline:none; line-height:1.6;">{{ edit_post.body|safe if edit_post else '' }}</div>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Author</label>
+        <input class="form-input" id="pAuthor" value="{{ edit_post.author if edit_post else 'The Coach' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Read Time (min)</label>
+        <input class="form-input" type="number" id="pReadTime" value="{{ edit_post.read_time if edit_post else 4 }}" min="1" max="60">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" type="date" id="pDate" value="{{ edit_post.post_date if edit_post else '' }}">
+      </div>
+    </div>
+    
+    <div style="display:flex; align-items:center; gap:2rem; margin-bottom:2rem;">
+      <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:14px; font-weight:600; color:var(--on-surface);">
+        <input type="checkbox" id="pPinned" {{ 'checked' if edit_post and edit_post['pinned'] else '' }}>
+        📌 Feature this post
+      </label>
+      <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:14px; font-weight:600; color:var(--on-surface);">
+        <input type="checkbox" id="pDraft" {{ 'checked' if edit_post and edit_post['status'] == 'draft' else '' }}>
+        📝 Save as Draft
+      </label>
+    </div>
+    
+    <div style="display:flex; gap:1rem;">
+      <button class="gp-btn-primary" id="savePostBtn">💾 Save & Publish</button>
+      <button class="gp-btn-secondary" id="saveDraftBtn">📝 Save Draft</button>
+      {% if edit_post %}
+      <button class="gp-btn-secondary" style="border-color:var(--error); color:var(--error);" data-title="{{ edit_post.title }}" onclick="deletePost('{{ edit_post.id }}', this.dataset.title)">✕ Delete</button>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── TECHNIQUES ─────────────────────────────────────────── #}
+  {% elif sec == 'techniques' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">Techniques</h2>
+      <button class="gp-btn-primary" id="newTechBtn">+ New Technique</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:1rem;" id="techList">
+      {% for t in techs %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        <span style="font-size:24px; margin-right:1rem;">{{ t.icon }}</span>
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ t.title }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);">Order: {{ t.sort_order }}</div>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" onclick="editTech('{{ t.id }}')">✎ Edit</button>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" data-title="{{ t.title }}" onclick="deleteTech('{{ t.id }}', this.dataset.title)">✕</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not techs %}
+      <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No techniques yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Technique Modal -->
+  <div class="lb-overlay" id="techModal" style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.8); backdrop-filter:blur(10px);">
+    <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-xl); padding:2rem; width:100%; max-width:600px; box-shadow:var(--shadow-lg);">
+      <h3 class="headline-md" id="techModalTitle" style="margin-bottom:1.5rem;">New Technique</h3>
+      <input type="hidden" id="tId">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Title *</label>
+          <input class="form-input" id="tTitle" placeholder="e.g. Landing the Axel">
+        </div>
+        <div class="form-group" style="max-width:100px;">
+          <label class="form-label">Icon</label>
+          <input class="form-input" id="tIcon" value="⛸" style="font-size:1.3rem;">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Excerpt</label>
+        <textarea class="form-textarea" id="tExcerpt" rows="2"></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Body (HTML ok)</label>
+        <div style="border:1px solid var(--isu-pale); border-radius:var(--radius-lg); background:var(--surface-white); overflow:hidden;">
+          <div style="display:flex; gap:0.25rem; padding:0.5rem; border-bottom:1px solid var(--isu-pale); background:var(--surface-container-low);">
+            <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt2('bold')"><b>B</b></button>
+            <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt2('italic')"><i>I</i></button>
+            <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock2('h3')">H3</button>
+            <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt2('insertUnorderedList')">• List</button>
+          </div>
+          <div id="tBody" contenteditable="true" style="padding:1rem; min-height:160px; outline:none; line-height:1.6;"></div>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Sort Order</label>
+        <input class="form-input" type="number" id="tOrder" value="0" min="0" style="max-width:100px;">
+      </div>
+      
+      <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
+        <button class="gp-btn-secondary" onclick="closeTechModal()">Cancel</button>
+        <button class="gp-btn-primary" id="saveTechBtn">Save Technique</button>
+      </div>
+    </div>
+  </div>
+
+  {# ── GALLERY ────────────────────────────────────────────── #}
+  {% elif sec == 'gallery' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">Gallery Items</h2>
+      <button class="gp-btn-primary" id="newGalBtn">+ New Item</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:1rem;" id="galList">
+      {% for g in gallery %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        <span style="font-size:24px; margin-right:1rem;">{{ g.emoji }}</span>
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ g.title }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);"><span class="filter-pill active" style="padding:0.1rem 0.4rem; font-size:10px; pointer-events:none;">{{ g.tag }}</span> · Order: {{ g.sort_order }}</div>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" onclick="editGal('{{ g.id }}')">✎ Edit</button>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" data-title="{{ g.title }}" onclick="deleteGal('{{ g.id }}', this.dataset.title)">✕</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not gallery %}
+      <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No gallery items yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Gallery Modal -->
+  <div class="lb-overlay" id="galModal" style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.8); backdrop-filter:blur(10px);">
+    <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-xl); padding:2rem; width:100%; max-width:600px; box-shadow:var(--shadow-lg);">
+      <h3 class="headline-md" id="galModalTitle" style="margin-bottom:1.5rem;">New Gallery Item</h3>
+      <input type="hidden" id="gId"><input type="hidden" id="gImagePath">
+      
+      <div class="form-group">
+        <label class="form-label">Photo (optional)</label>
+        <div id="uploadZone" onclick="document.getElementById('imgFile').click()" style="border:2px dashed var(--isu-pale); border-radius:var(--radius-lg); padding:2rem; text-align:center; cursor:pointer; background:var(--surface-container-low); transition:var(--transition);">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">📸</div>
+          <p style="font-size:14px; color:var(--on-surface-variant);">Click to upload · JPEG/PNG/WebP · max 5 MB</p>
+          <img id="uploadPreview" alt="Preview" style="display:none; max-width:100%; max-height:200px; margin-top:1rem; border-radius:var(--radius); object-fit:contain;">
+        </div>
+        <input type="file" id="imgFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Title *</label>
+          <input class="form-input" id="gTitle" placeholder="e.g. Competition Day">
+        </div>
+        <div class="form-group" style="max-width:100px;">
+          <label class="form-label">Emoji</label>
+          <input class="form-input" id="gEmoji" value="⛸" style="font-size:1.3rem;">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="gDesc" rows="2"></textarea>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tag</label>
+          <select class="form-input" id="gTag" style="appearance:auto;">
+            {% for t in ['Training','Competition','Technique','Event','Milestone'] %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sort Order</label>
+          <input class="form-input" type="number" id="gOrder" value="0" min="0">
+        </div>
+      </div>
+      
+      <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:2rem;">
+        <button class="gp-btn-secondary" onclick="closeGalModal()">Cancel</button>
+        <button class="gp-btn-primary" id="saveGalBtn">Save Item</button>
+      </div>
+    </div>
+  </div>
+
+  {# ── PAGES ──────────────────────────────────────────────── #}
+  {% elif sec == 'pages' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">Custom Pages</h2>
+      <a href="{{ url_for('admin.admin_index', sec='new_page') }}" class="gp-btn-primary">+ New Page</a>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      {% for pg in pages %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ pg.name }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);">slug: /{{ pg.slug }}</div>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <a href="{{ url_for('admin.admin_index', editpage=pg['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;">✎ Edit</a>
+          <a href="{{ url_for('custom_page', page_id=pg['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;" target="_blank">↗</a>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" data-name="{{ pg.name }}" onclick="deletePage('{{ pg.id }}', this.dataset.name)">✕</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not pages %}
+      <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No pages yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── PAGE EDITOR ────────────────────────────────────────── #}
+  {% elif sec in ('new_page', 'edit_page') %}
+  <div style="max-width:800px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">{{ 'Edit Page' if edit_page else 'New Page' }}</h2>
+      <a href="{{ url_for('admin.admin_index', sec='pages') }}" class="gp-btn-secondary">← Pages</a>
+    </div>
+    <input type="hidden" id="pgId" value="{{ edit_page.id if edit_page else '' }}">
+    
+    <div class="form-group">
+      <label class="form-label">Page Name *</label>
+      <input class="form-input" id="pgName" value="{{ edit_page.name if edit_page else '' }}" placeholder="e.g. About">
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Body</label>
+      <div style="border:1px solid var(--isu-pale); border-radius:var(--radius-lg); background:var(--surface-white); overflow:hidden;">
+        <div style="display:flex; gap:0.25rem; padding:0.5rem; border-bottom:1px solid var(--isu-pale); background:var(--surface-container-low);">
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt3('bold')"><b>B</b></button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt3('italic')"><i>I</i></button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock3('h2')">H2</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmtBlock3('h3')">H3</button>
+          <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="fmt3('insertUnorderedList')">• List</button>
+        </div>
+        <div id="pgBody" contenteditable="true" style="padding:1.5rem; min-height:300px; outline:none; line-height:1.6;">{{ edit_page.body|safe if edit_page else '' }}</div>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+      <button class="gp-btn-primary" id="savePageBtn">💾 Save Page</button>
+      {% if edit_page %}
+      <button class="gp-btn-secondary" style="border-color:var(--error); color:var(--error);" data-name="{{ edit_page.name }}" onclick="deletePage('{{ edit_page.id }}', this.dataset.name)">✕ Delete</button>
+      {% endif %}
+    </div>
+    <div id="pgMsg" style="margin-top:1rem;"></div>
+  </div>
+
+  {# ── MESSAGES ───────────────────────────────────────────── #}
+  {% elif sec == 'messages' %}
+  <div>
+    <h2 class="display-lg" style="font-size:32px; margin-bottom:2rem;">
+      Contact Messages 
+      {% if unread_count %}
+      <span class="filter-pill active" style="font-size:14px; pointer-events:none; vertical-align:middle; margin-left:1rem;">{{ unread_count }} new</span>
+      {% endif %}
+    </h2>
+    
+    {% if not messages %}
+    <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+      <h3 class="headline-md" style="margin-bottom:0.5rem;">No messages yet</h3>
+      <p style="color:var(--on-surface-variant);">Messages from the contact form will appear here.</p>
+    </div>
+    {% else %}
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      {% for m in messages %}
+      <div id="msg-{{ m.id }}" style="display:flex; align-items:flex-start; background:var(--surface-white); border:1px solid {% if not m['is_read'] %}var(--secondary){% else %}var(--isu-pale){% endif %}; border-radius:var(--radius-lg); padding:1.5rem; box-shadow:var(--shadow-sm);">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:12px; color:var(--on-surface-variant); margin-bottom:0.25rem;">
+            {{ m.created_at }} 
+            {% if not m['is_read'] %}<span style="color:var(--secondary); font-weight:700; margin-left:0.5rem;">● NEW</span>{% endif %}
+          </div>
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.5rem;">{{ m.subject or '(No subject)' }}</div>
+          <div style="font-size:14px; line-height:1.6; color:var(--on-surface); margin-bottom:1rem;">{{ m.message[:200] }}{{ '…' if m['message']|length > 200 else '' }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);">From: <strong style="color:var(--primary);">{{ m.name }}</strong> &lt;<a href="mailto:{{ m.email }}" style="color:var(--secondary);">{{ m.email }}</a>&gt;</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.5rem; margin-left:2rem; flex-shrink:0;">
+          <a href="mailto:{{ m.email }}?subject=Re: {{ m.subject or 'Your message' }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; justify-content:center;">✉ Reply</a>
+          {% if not m['is_read'] %}<button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; justify-content:center;" onclick="markRead('{{ m.id }}')">✓ Read</button>{% endif %}
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; justify-content:center; border-color:var(--error); color:var(--error);" onclick="deleteMsg('{{ m.id }}')">✕ Delete</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── SETTINGS ───────────────────────────────────────────── #}
+  {% elif sec == 'settings' %}
+  <div style="max-width:600px;">
+    <h2 class="display-lg" style="font-size:32px; margin-bottom:2rem;">Site Settings</h2>
+    <div id="setMsg"></div>
+    
+    <div class="form-group">
+      <label class="form-label">Blog Name</label>
+      <input class="form-input" id="sBlogName" value="{{ settings.get('blog_name', '') }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tagline</label>
+      <input class="form-input" id="sTagline" value="{{ settings.get('tagline', '') }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hero Quote</label>
+      <textarea class="form-textarea" id="sHeroQuote" rows="2">{{ settings.get('hero_quote', '') }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Coach Title</label>
+      <input class="form-input" id="sCoachTitle" value="{{ settings.get('coach_title', '') }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">WhatsApp Link</label>
+      <input class="form-input" id="sWaLink" value="{{ settings.get('whatsapp_link', '') }}" placeholder="https://wa.me/1234567890">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contact Email</label>
+      <input class="form-input" type="email" id="sContactEmail" value="{{ settings.get('contact_email', '') }}" placeholder="coach@example.com">
+    </div>
+    
+    <h3 class="headline-md" style="font-size: 24px; margin: 3rem 0 1.5rem;">Social Media API Tokens</h3>
+    <div class="form-group">
+      <label class="form-label">Facebook Graph API Token</label>
+      <input class="form-input" id="sFbToken" placeholder="EAA..." value="{% for t in social_tokens %}{% if t.platform == 'facebook' %}{{ t.access_token }}{% endif %}{% endfor %}">
+      <p style="font-size: 12px; color:var(--on-surface-variant); margin-top: 0.5rem;">Used to fetch live Facebook feed.</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Instagram Basic Display API Token</label>
+      <input class="form-input" id="sIgToken" placeholder="IGQ..." value="{% for t in social_tokens %}{% if t.platform == 'instagram' %}{{ t.access_token }}{% endif %}{% endfor %}">
+      <p style="font-size: 12px; color:var(--on-surface-variant); margin-top: 0.5rem;">Used to fetch live Instagram feed.</p>
+    </div>
+
+    <button class="gp-btn-primary" id="saveSetBtn" style="margin-top: 1rem;">💾 Save Settings</button>
+  </div>
+
+  {# ── PRODUCTS (CMS E-COMMERCE) ──────────────────────────── #}
+  {% elif sec == 'products' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">Shop Products</h2>
+      <a href="{{ url_for('admin.admin_index', sec='new_product') }}" class="gp-btn-primary">+ New Product</a>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      {% for p in products %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:18px; color:var(--primary); margin-bottom:0.25rem;">{{ p.name }}</div>
+          <div style="font-size:13px; color:var(--on-surface-variant);">Base Price: ₹{{ p.base_price }}</div>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <a href="{{ url_for('admin.admin_index', editproduct=p['id']) }}" class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px;">✎ Edit Variants & Info</a>
+          <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" onclick='deleteProduct("{{ p.id }}")'>✕</button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not products %}
+      <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No products yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── NEW PRODUCT ────────────────────────────────────────── #}
+  {% elif sec == 'new_product' or request.args.get('editproduct') %}
+  <div style="max-width:800px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">{{ 'Edit Product' if edit_product else 'New Product' }}</h2>
+      <a href="{{ url_for('admin.admin_index', sec='products') }}" class="gp-btn-secondary">← Products</a>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Product Name *</label>
+      <input class="form-input" id="prodName" value="{{ edit_product.name if edit_product else '' }}" placeholder="e.g. Pro Ice Skates">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description (HTML allowed)</label>
+      <textarea class="form-textarea" id="prodDesc" rows="4">{{ edit_product.description if edit_product else '' }}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Base Price (₹)</label>
+      <input class="form-input" type="number" id="prodPrice" value="{{ edit_product.base_price if edit_product else 0 }}" style="max-width:150px;">
+    </div>
+    <button class="gp-btn-primary" id="saveProdBtn" style="margin-bottom: 3rem;">💾 Save Product Base</button>
+    
+    {% if edit_product %}
+    <h3 class="headline-md" style="font-size: 24px; margin-bottom: 1rem; border-top:1px solid var(--isu-pale); padding-top:2rem;">Variants (Colors & Sizes)</h3>
+    <div style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom: 2rem;">
+      {% for v in product_variants %}
+      <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding:0.75rem 1rem;">
+        <div style="font-size:14px; color:var(--primary);"><strong>{{ v.color or 'Default' }}</strong> | Size: {{ v.size or 'Default' }} | Stock: {{ v.stock_quantity }}</div>
+        <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border-color:var(--error); color:var(--error);" onclick="deleteVariant('{{ v.id }}')">✕</button>
+      </div>
+      {% endfor %}
+      <div style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding:1rem;">
+         <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Color</label><input class="form-input" id="varColor" placeholder="Color (optional)"></div>
+         <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Size</label><input class="form-input" id="varSize" placeholder="Size (optional)"></div>
+         <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Stock</label><input class="form-input" type="number" id="varStock" placeholder="Qty" value="10" style="width: 80px;"></div>
+         <button class="gp-btn-secondary" style="padding:0.7rem 1rem;" onclick="saveVariant('{{ edit_product.id }}')">+ Add</button>
+      </div>
+    </div>
+
+    <h3 class="headline-md" style="font-size: 24px; margin-bottom: 1rem; border-top:1px solid var(--isu-pale); padding-top:2rem;">Product Images</h3>
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:1rem; margin-bottom: 1rem;">
+      {% for i in product_images %}
+      <div style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding: 0.5rem; text-align: center;">
+        <img src="{{ i.image_url }}" style="width:100%; height:100px; object-fit:cover; border-radius: 4px;">
+        <div style="font-size: 12px; margin: 0.5rem 0; color:var(--on-surface-variant);">Match: {{ i.color_match or 'All' }}</div>
+        <button class="gp-btn-secondary" style="width:100%; justify-content:center; padding:0.3rem; font-size:12px; border-color:var(--error); color:var(--error);" onclick="deleteProdImage('{{ i.id }}')">Delete</button>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding:1rem;">
+       <div class="form-group" style="margin:0;flex:1;"><label class="form-label" style="font-size:12px;">Image URL (from Media Library)</label><input class="form-input" id="imgUrl" placeholder="/uploads/..."></div>
+       <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Match Color (optional)</label><input class="form-input" id="imgColor" placeholder="e.g. Red"></div>
+       <button class="gp-btn-secondary" style="padding:0.7rem 1rem;" onclick="saveProdImage('{{ edit_product.id }}')">+ Add</button>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── MEDIA LIBRARY ──────────────────────────────────────── #}
+  {% elif sec == 'media' %}
+  <div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      <h2 class="display-lg" style="font-size:32px;">Media Library</h2>
+      <button class="gp-btn-primary" id="uploadMediaBtn" onclick="document.getElementById('mediaUploadInput').click()">+ Upload Media</button>
+      <input type="file" id="mediaUploadInput" accept="image/*,video/mp4" style="display:none">
+    </div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:1.5rem;">
+      {% for m in media_items %}
+      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding: 1rem; text-align: center; box-shadow:var(--shadow-sm);">
+        {% if m['media_type'] == 'video' %}
+        <video src="{{ m.url }}" style="width:100%; height:120px; object-fit:cover; border-radius: var(--radius);" controls></video>
+        {% else %}
+        <img src="{{ m.url }}" style="width:100%; height:120px; object-fit:cover; border-radius: var(--radius);">
+        {% endif %}
+        <div style="font-size: 11px; color:var(--on-surface-variant); margin-top: 0.5rem; word-break: break-all; font-family:monospace;">
+          {{ m.url }}
+        </div>
+        <button class="gp-btn-secondary" style="margin-top: 1rem; width:100%; justify-content:center; border-color:var(--error); color:var(--error); padding:0.4rem; font-size:13px;" onclick="deleteMedia('{{ m.id }}')">Delete</button>
+      </div>
+      {% endfor %}
+      {% if not media_items %}
+      <div style="grid-column: 1/-1; text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No media uploaded yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── USERS ──────────────────────────────────────────────── #}
+  {% elif sec == 'users' %}
+  <div>
+    <h2 class="display-lg" style="font-size:32px; margin-bottom:2rem;">Members ({{ user_count }})</h2>
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      {% for u in users %}
+      <div style="display:flex; align-items:center; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem 1.5rem; box-shadow:var(--shadow-sm);">
+        <div style="width:40px;height:40px; border-radius:50%; background:var(--secondary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; margin-right:1rem; flex-shrink:0;">
+          {{ u.username[0]|upper }}
+        </div>
+        <div style="flex:1;">
+          <div class="headline-md" style="font-size:16px; color:var(--primary); margin-bottom:0.25rem;">{{ u.username }}</div>
+          <div style="font-size:12px; color:var(--on-surface-variant);">{{ 'Google' if u['is_google'] else 'Password' }} · Joined {{ u.created_at[:7] if u['created_at'] else '' }}</div>
+        </div>
+        <span class="filter-pill active" style="margin-right:1rem; pointer-events:none; padding:0.2rem 0.6rem; font-size:11px;">{{ u.role|upper }}</span>
+        <button class="gp-btn-secondary" style="padding:0.4rem 0.8rem; font-size:13px; border-color:var(--error); color:var(--error);" data-username="{{ u.username }}" onclick="deleteUser('{{ u.id }}', this.dataset.username)">✕</button>
+      </div>
+      {% endfor %}
+      {% if not users %}
+      <div style="text-align:center; padding:4rem; background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg);">
+        <h3 class="headline-md">No members yet</h3>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Rich editor commands
+function fmt(cmd){document.execCommand(cmd,false,null);}
+function fmtBlock(tag){document.execCommand('formatBlock',false,'<'+tag+'>');}
+function wrapSel(tag){var sel=window.getSelection();if(!sel.rangeCount)return;var r=sel.getRangeAt(0);var el=document.createElement(tag);try{r.surroundContents(el);}catch(e){}}
+function fmt2(cmd){document.execCommand(cmd,false,null);}
+function fmtBlock2(tag){document.execCommand('formatBlock',false,'<'+tag+'>');}
+function fmt3(cmd){document.execCommand(cmd,false,null);}
+function fmtBlock3(tag){document.execCommand('formatBlock',false,'<'+tag+'>');}
+
+// Post editor
+var savePostBtn=document.getElementById('savePostBtn');
+var saveDraftBtn=document.getElementById('saveDraftBtn');
+function doSavePost(forceDraft){
+  var title=document.getElementById('pTitle').value.trim();
+  var body=document.getElementById('pBody').innerHTML.trim();
+  var excerpt=document.getElementById('pExcerpt').value.trim();
+  var author=document.getElementById('pAuthor').value.trim();
+  var rt=document.getElementById('pReadTime').value;
+  var date=document.getElementById('pDate').value;
+  var pinned=document.getElementById('pPinned').checked?1:0;
+  var isDraft=(forceDraft===true)||document.getElementById('pDraft').checked;
+  var status=isDraft?'draft':'published';
+  var id='{{ edit_post.id if edit_post else "" }}';
+  if(!title||!body){showToast('Title and body are required.','error');return;}
+  var params='title='+encodeURIComponent(title)+'&body='+encodeURIComponent(body)+'&excerpt='+encodeURIComponent(excerpt)+'&author='+encodeURIComponent(author)+'&read_time='+rt+'&post_date='+date+'&pinned='+pinned+'&status='+status+(id?'&id='+encodeURIComponent(id):'');
+  fetch('/api/save_post',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params})
+    .then(r=>r.json()).then(d=>{
+      if(d.ok){showToast(isDraft?'Draft saved 📝':'Post published!');if(!id&&d.id)setTimeout(()=>window.location.href='/admin/?edit='+d.id,800);}
+      else showToast(d.msg,'error');
+    });
+}
+if(savePostBtn)savePostBtn.addEventListener('click',function(){doSavePost(false);});
+if(saveDraftBtn)saveDraftBtn.addEventListener('click',function(){doSavePost(true);});
+function deletePost(id,title){if(!confirm('Delete "'+title+'"?'))return;fetch('/api/delete_post',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>window.location.href='/admin/?sec=posts',700);}else showToast(d.msg,'error');});}
+function togglePin(id){fetch('/api/toggle_pin',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+
+// Technique editor
+</script>
+<script id="techDataJson" type="application/json">{{ techs_json|safe }}</script>
+<script>
+var techData = JSON.parse(document.getElementById('techDataJson').textContent);
+function openTechModal(){document.getElementById('techModal').style.display='flex';}
+function closeTechModal(){document.getElementById('techModal').style.display='none';clearTechForm();}
+function clearTechForm(){document.getElementById('tId').value='';document.getElementById('tTitle').value='';document.getElementById('tIcon').value='⛸';document.getElementById('tExcerpt').value='';document.getElementById('tBody').innerHTML='';document.getElementById('tOrder').value='0';document.getElementById('techModalTitle').textContent='New Technique';}
+document.getElementById('techModal')&&document.getElementById('techModal').addEventListener('click',function(e){if(e.target===this)closeTechModal();});
+document.getElementById('newTechBtn')&&document.getElementById('newTechBtn').addEventListener('click',function(){clearTechForm();openTechModal();});
+function editTech(id){var t=techData[id];if(!t)return;document.getElementById('tId').value=t.id;document.getElementById('tTitle').value=t.title;document.getElementById('tIcon').value=t.icon;document.getElementById('tExcerpt').value=t.excerpt;document.getElementById('tBody').innerHTML=t.body;document.getElementById('tOrder').value=t.sort_order;document.getElementById('techModalTitle').textContent='Edit Technique';openTechModal();}
+document.getElementById('saveTechBtn')&&document.getElementById('saveTechBtn').addEventListener('click',function(){var id=document.getElementById('tId').value;var title=document.getElementById('tTitle').value.trim();var icon=document.getElementById('tIcon').value.trim()||'⛸';var excerpt=document.getElementById('tExcerpt').value.trim();var body=document.getElementById('tBody').innerHTML.trim();var order=document.getElementById('tOrder').value;if(!title){showToast('Title required.','error');return;}var params='title='+encodeURIComponent(title)+'&icon='+encodeURIComponent(icon)+'&excerpt='+encodeURIComponent(excerpt)+'&body='+encodeURIComponent(body)+'&sort_order='+order+(id?'&id='+encodeURIComponent(id):'');fetch('/api/save_technique',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Saved!');setTimeout(()=>location.reload(),700);}else showToast(d.msg,'error');});});
+function deleteTech(id,title){if(!confirm('Delete "'+title+'"?'))return;fetch('/api/delete_technique',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>location.reload(),700);}});}
+
+// Page editor
+document.getElementById('savePageBtn')&&document.getElementById('savePageBtn').addEventListener('click',function(){var id=document.getElementById('pgId').value;var name=document.getElementById('pgName').value.trim();var body=document.getElementById('pgBody').innerHTML.trim();if(!name){showToast('Page name required.','error');return;}var params='name='+encodeURIComponent(name)+'&body='+encodeURIComponent(body)+(id?'&id='+encodeURIComponent(id):'');fetch('/api/save_page',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Page saved!');if(!id&&d.id)setTimeout(()=>window.location.href='/admin/?editpage='+d.id,800);}else showToast(d.msg,'error');});});
+function deletePage(id,name){if(!confirm('Delete "'+name+'"?'))return;fetch('/api/delete_page',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>window.location.href='/admin/?sec=pages',700);}});}
+
+// Settings
+document.getElementById('saveSetBtn')&&document.getElementById('saveSetBtn').addEventListener('click',function(){var params='blog_name='+encodeURIComponent(document.getElementById('sBlogName').value)+'&tagline='+encodeURIComponent(document.getElementById('sTagline').value)+'&hero_quote='+encodeURIComponent(document.getElementById('sHeroQuote').value)+'&coach_title='+encodeURIComponent(document.getElementById('sCoachTitle').value)+'&whatsapp_link='+encodeURIComponent(document.getElementById('sWaLink').value)+'&contact_email='+encodeURIComponent(document.getElementById('sContactEmail').value)+'&fb_token='+encodeURIComponent(document.getElementById('sFbToken')?document.getElementById('sFbToken').value:'')+'&ig_token='+encodeURIComponent(document.getElementById('sIgToken')?document.getElementById('sIgToken').value:'');fetch('/api/save_settings',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok)showToast('Settings saved!');else showToast(d.msg,'error');});});
+
+// Users
+function deleteUser(id,name){if(!confirm('Delete user "'+name+'"?'))return;fetch('/api/delete_user',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('User removed.');setTimeout(()=>location.reload(),700);}});}
+
+// Gallery
+</script>
+<script id="galDataJson" type="application/json">{{ gallery_json|safe }}</script>
+<script>
+var galData = JSON.parse(document.getElementById('galDataJson').textContent);
+function openGalModal(){var m=document.getElementById('galModal');if(m)m.style.display='flex';}
+function closeGalModal(){var m=document.getElementById('galModal');if(m)m.style.display='none';clearGalForm();}
+function clearGalForm(){document.getElementById('gId').value='';document.getElementById('gImagePath').value='';document.getElementById('gTitle').value='';document.getElementById('gEmoji').value='⛸';document.getElementById('gDesc').value='';var gt=document.getElementById('gTag');if(gt)gt.value='Training';document.getElementById('gOrder').value='0';document.getElementById('galModalTitle').textContent='New Gallery Item';var prev=document.getElementById('uploadPreview');if(prev){prev.style.display='none';prev.src='';}}
+document.getElementById('galModal')&&document.getElementById('galModal').addEventListener('click',function(e){if(e.target===this)closeGalModal();});
+document.getElementById('newGalBtn')&&document.getElementById('newGalBtn').addEventListener('click',function(){clearGalForm();openGalModal();});
+var imgFile=document.getElementById('imgFile');
+if(imgFile){imgFile.addEventListener('change',function(){var file=this.files[0];if(!file)return;var prev=document.getElementById('uploadPreview');var reader=new FileReader();reader.onload=function(e){prev.src=e.target.result;prev.style.display='block';};reader.readAsDataURL(file);});}
+var uz=document.getElementById('uploadZone');
+if(uz){uz.addEventListener('dragover',function(e){e.preventDefault();uz.style.borderColor='var(--secondary)';});uz.addEventListener('dragleave',function(){uz.style.borderColor='var(--isu-pale)';});uz.addEventListener('drop',function(e){e.preventDefault();uz.style.borderColor='var(--isu-pale)';var file=e.dataTransfer.files[0];if(file&&imgFile){imgFile.files=e.dataTransfer.files;imgFile.dispatchEvent(new Event('change'));}});}
+function editGal(id){var g=galData[id];if(!g)return;document.getElementById('gId').value=g.id;document.getElementById('gImagePath').value=g.image_path||'';document.getElementById('gTitle').value=g.title;document.getElementById('gEmoji').value=g.emoji;document.getElementById('gDesc').value=g.description||'';var gt=document.getElementById('gTag');if(gt)gt.value=g.tag;document.getElementById('gOrder').value=g.sort_order;document.getElementById('galModalTitle').textContent='Edit Gallery Item';var prev=document.getElementById('uploadPreview');if(prev&&g.image_path){prev.src=g.image_path;prev.style.display='block';}openGalModal();}
+document.getElementById('saveGalBtn')&&document.getElementById('saveGalBtn').addEventListener('click',function(){var id=document.getElementById('gId').value;var imagePath=document.getElementById('gImagePath').value;var title=document.getElementById('gTitle').value.trim();var emoji=document.getElementById('gEmoji').value.trim()||'⛸';var desc=document.getElementById('gDesc').value.trim();var tag=document.getElementById('gTag').value;var order=document.getElementById('gOrder').value;if(!title){showToast('Title required.','error');return;}var btn=document.getElementById('saveGalBtn');btn.disabled=true;btn.textContent='Saving…';function doSaveGal(imgPath){var params='title='+encodeURIComponent(title)+'&emoji='+encodeURIComponent(emoji)+'&description='+encodeURIComponent(desc)+'&tag='+encodeURIComponent(tag)+'&sort_order='+order+'&image_path='+encodeURIComponent(imgPath||imagePath)+(id?'&id='+encodeURIComponent(id):'');fetch('/api/save_gallery_item',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{btn.disabled=false;btn.textContent='Save Item';if(d.ok){showToast('Saved!');setTimeout(()=>location.reload(),700);}else showToast(d.msg,'error');});}var file=document.getElementById('imgFile')&&document.getElementById('imgFile').files[0];if(file){var fd=new FormData();fd.append('image',file);fetch('/api/upload_image',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.ok)doSaveGal(d.path);else{showToast(d.msg,'error');btn.disabled=false;btn.textContent='Save Item';}});}else{doSaveGal(imagePath);}});
+function deleteGal(id,title){if(!confirm('Delete "'+title+'"?'))return;fetch('/api/delete_gallery_item',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>location.reload(),700);}});}
+
+// Messages
+function markRead(id){fetch('/api/mark_read',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok){var row=document.getElementById('msg-'+id);if(row)row.style.borderColor='var(--isu-pale)';showToast('Marked as read.');}});}
+function deleteMsg(id){if(!confirm('Delete this message?'))return;fetch('/api/delete_message',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok){var row=document.getElementById('msg-'+id);if(row)row.remove();showToast('Deleted.');}});}
+
+// CMS Products & Media
+document.getElementById('saveProdBtn')&&document.getElementById('saveProdBtn').addEventListener('click',function(){var id=new URLSearchParams(window.location.search).get('editproduct')||'';var name=document.getElementById('prodName').value.trim();var desc=document.getElementById('prodDesc').value.trim();var price=document.getElementById('prodPrice').value;if(!name){showToast('Name required','error');return;}var params='name='+encodeURIComponent(name)+'&description='+encodeURIComponent(desc)+'&base_price='+price+(id?'&id='+id:'');fetch('/api/save_product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Saved!');if(!id)window.location.href='/admin/?editproduct='+d.id;}});});
+function deleteProduct(id){if(confirm('Delete product?'))fetch('/api/delete_product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+
+function saveVariant(prodId){var color=document.getElementById('varColor').value.trim();var size=document.getElementById('varSize').value.trim();var stock=document.getElementById('varStock').value;fetch('/api/save_variant',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'product_id='+prodId+'&color='+encodeURIComponent(color)+'&size='+encodeURIComponent(size)+'&stock_quantity='+stock}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+function deleteVariant(id){if(confirm('Delete variant?'))fetch('/api/delete_variant',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+
+function saveProdImage(prodId){var url=document.getElementById('imgUrl').value.trim();var color=document.getElementById('imgColor').value.trim();if(!url)return;fetch('/api/save_prod_image',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'product_id='+prodId+'&image_url='+encodeURIComponent(url)+'&color_match='+encodeURIComponent(color)}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+function deleteProdImage(id){if(confirm('Delete image?'))fetch('/api/delete_prod_image',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+
+var mediaInput = document.getElementById('mediaUploadInput');
+if (mediaInput) { mediaInput.addEventListener('change', function() { var file = this.files[0]; if(!file)return; var fd = new FormData(); fd.append('media', file); fetch('/api/upload_media',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else showToast(d.msg,'error');}); }); }
+function deleteMedia(id){if(confirm('Delete media?'))fetch('/api/delete_media',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+</script>
+{% endblock %}

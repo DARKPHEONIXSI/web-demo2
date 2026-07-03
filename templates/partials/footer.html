@@ -1,0 +1,15 @@
+<!-- Glacial Precision Footer -->
+<footer class="gp-footer">
+  <div class="gp-footer-inner">
+    <div class="gp-footer-logo">On Ice</div>
+    <div class="gp-footer-links">
+      <a href="#" class="gp-footer-link">Privacy Policy</a>
+      <a href="#" class="gp-footer-link">Terms of Service</a>
+      <a href="#" class="gp-footer-link">Shipping & Returns</a>
+      <a href="{{ url_for('contact') }}" class="gp-footer-link">Contact Us</a>
+    </div>
+    <div class="gp-footer-copy">
+      &copy; {{ settings.get('blog_name', 'On Ice') }}. Technical precision on and off the rink.
+    </div>
+  </div>
+</footer>

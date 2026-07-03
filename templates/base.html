@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>{% block title %}{{ settings.get('blog_name', 'On Ice') }} — Skating Blog{% endblock %}</title>
+  <meta name="description" content="{% block description %}{{ settings.get('tagline', '') }}{% endblock %}">
+  {% block meta_extra %}{% endblock %}
+  {# CSRF token for all AJAX fetch() calls #}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}?v=2.0">
+
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+  {% include 'partials/nav.html' %}
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include 'partials/footer.html' %}
+
+  <!-- Modal slot for login/register -->
+  <div id="modal-slot"></div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Global nav JS -->
+  <script>
+    (function () {
+      // ── Global fetch() override — injects CSRF token on every non-GET request
+      (function () {
+        var _origFetch = window.fetch;
+        window.fetch = function (url, options) {
+          options = options || {};
+          var method = (options.method || 'GET').toUpperCase();
+          if (method !== 'GET' && method !== 'HEAD') {
+            var token = document.querySelector('meta[name="csrf-token"]');
+            if (token) {
+              options.headers = Object.assign({}, options.headers, {
+                'X-CSRFToken': token.content
+              });
+            }
+          }
+          return _origFetch.call(this, url, options);
+        };
+      })();
+
+      // Modal injection helper (re-executes script tags)
+      window.injectModal = function (html) {
+        var s = document.getElementById("modal-slot");
+        if (!s) return;
+        s.innerHTML = "";
+        var tmp = document.createElement("div");
+        tmp.innerHTML = html;
+        while (tmp.firstChild) s.appendChild(tmp.firstChild);
+        s.querySelectorAll("script").forEach(function (oldScript) {
+          var newScript = document.createElement("script");
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+      };
+
+      document.addEventListener("click", function (e) {
+        var target = e.target.closest ? e.target.closest('button, a') : e.target;
+        if (!target) return;
+
+        if (target.id === "loginBtn") {
+          fetch("/auth/modal?mode=login").then(r => r.text()).then(h => window.injectModal(h));
+        }
+        if (target.id === "registerBtn") {
+          fetch("/auth/modal?mode=register").then(r => r.text()).then(h => window.injectModal(h));
+        }
+        if (target.id === "logoutBtn") {
+          fetch("/auth/logout", { method: 'POST' }).then(() => location.reload());
+        }
+
+      });
+    })();
+
+    // Toast system
+    function showToast(msg, type) {
+      var container = document.getElementById('toast-container');
+      var t = document.createElement('div');
+      t.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+      t.textContent = msg;
+      container.appendChild(t);
+      requestAnimationFrame(() => t.classList.add('show'));
+      setTimeout(function () {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 300);
+      }, 2700);
+    }
+
+    // ── Cart system ───────────────────────────────────────────────────
+    function _getCart() {
+      try { return JSON.parse(localStorage.getItem('cart') || '[]'); }
+      catch (e) { return []; }
+    }
+    function _saveCart(cart) {
+      localStorage.setItem('cart', JSON.stringify(cart));
+      localStorage.setItem('cartCount', cart.length);
+    }
+
+    window.addToCart = function (btn, e, itemName, itemPrice) {
+      if (e) e.preventDefault();
+      var cart = _getCart();
+      var name = itemName || btn.dataset.name || 'Item';
+      var price = parseFloat(itemPrice || btn.dataset.price || 0);
+      cart.push({ name: name, price: price });
+      _saveCart(cart);
+      updateCartBadge();
+
+      var origText = btn.textContent;
+      btn.textContent = 'Added ✓';
+      btn.style.background = 'var(--secondary)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--secondary)';
+      setTimeout(function () {
+        btn.textContent = origText;
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 1500);
+    };
+
+    window.addItemToCart = function (name, price) {
+      var cart = _getCart();
+      cart.push({ name: name, price: parseFloat(price) || 0 });
+      _saveCart(cart);
+      updateCartBadge();
+    };
+
+    window.cartClear = function () {
+      localStorage.removeItem('cart');
+      localStorage.removeItem('cartCount');
+      updateCartBadge();
+    };
+
+    function updateCartBadge() {
+      var badge = document.getElementById('cartBadge');
+      if (!badge) return;
+      var count = _getCart().length;
+      if (count > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = count;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    updateCartBadge();
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+
+</html>

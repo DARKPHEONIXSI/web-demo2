@@ -101,8 +101,6 @@ Create a `.env` file with the following variables:
 ```env
 SECRET_KEY=your_super_secure_random_key_here
 JWT_SECRET_KEY=your_jwt_secret_key
-ADMIN_USER=sir
-ADMIN_PASS_HASH=hashed_admin_password
 
 # Payment Gateways
 RAZORPAY_KEY_ID=rzp_test_your_razorpay_key

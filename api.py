@@ -4,31 +4,54 @@ Handles all CRUD operations for posts, techniques, gallery, pages, settings, use
 """
 
 import os
+import mimetypes
+import json
+import hashlib
+import hmac
+import io
+import urllib.parse
+import urllib.request
+
+try:
+    import magic
+except ImportError:  # Windows/local installs often lack libmagic bindings.
+    magic = None
 
 import paytmchecksum
 import razorpay
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
+try:
+    from PIL import Image, ImageOps
+except ImportError:
+    Image = None
+    ImageOps = None
+
 from auth import admin_required, jwt_required
 from models import gen_id, get_db, save_setting
+from models import log_audit
 from purify_html import purify_html
 
 api_bp = Blueprint("api", __name__)
 
 
-def ok(msg="", **extra):
-    """Return a success JSON response."""
-    return jsonify({"ok": True, "msg": msg, **extra})
+def ok(msg: str = "OK", **extra):
+    """Return a standard successful JSON response."""
+    payload = {"ok": True, "msg": msg}
+    payload.update(extra)
+    return jsonify(payload)
 
 
-def err(msg):
-    """Return an error JSON response."""
-    return jsonify({"ok": False, "msg": msg})
+def err(msg: str, status: int = 400, **extra):
+    """Return a standard error JSON response."""
+    payload = {"ok": False, "msg": msg}
+    payload.update(extra)
+    return jsonify(payload), status
 
 
-def allowed_file(filename):
-    """Check if file extension is allowed for image uploads."""
+def allowed_file(filename: str) -> bool:
+    """Check uploaded image extension against the configured allow-list."""
     return (
         "." in filename
         and filename.rsplit(".", 1)[1].lower()
@@ -36,7 +59,246 @@ def allowed_file(filename):
     )
 
 
-# Allowed extensions for the media library (images + video only)
+def detect_mime(file) -> str:
+    """Detect upload MIME type, preferring libmagic when available."""
+    if magic is not None:
+        file.seek(0)
+        mime_type = magic.from_buffer(file.read(2048), mime=True)
+        file.seek(0)
+        return mime_type
+    mime_type, _ = mimetypes.guess_type(file.filename or "")
+    return mime_type or ""
+
+
+def sanitized_image_bytes(file, ext: str) -> tuple[bytes | None, str | None]:
+    """Re-encode uploaded images to strip metadata and enforce dimensions."""
+    if Image is None or ImageOps is None:
+        return None, "Image processing dependency is not installed."
+
+    try:
+        file.seek(0)
+        with Image.open(file) as img:
+            img.load()
+            if img.width * img.height > current_app.config["MAX_IMAGE_PIXELS"]:
+                return None, "Image dimensions are too large."
+            img = ImageOps.exif_transpose(img)
+            save_ext = "JPEG" if ext in {"jpg", "jpeg"} else ext.upper()
+            if save_ext == "JPG":
+                save_ext = "JPEG"
+            if save_ext not in {"JPEG", "PNG", "WEBP", "GIF"}:
+                return None, "Unsupported image format."
+            if save_ext == "JPEG" and img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            elif save_ext in {"PNG", "WEBP", "GIF"} and img.mode not in ("RGB", "RGBA", "P", "L"):
+                img = img.convert("RGBA")
+            output = io.BytesIO()
+            img.save(output, format=save_ext, optimize=True)
+        file.seek(0)
+        return output.getvalue(), None
+    except Exception:
+        current_app.logger.exception("image re-encoding failed")
+        return None, "Invalid image file."
+
+
+def save_sanitized_image(file, filepath: str, ext: str):
+    image_bytes, error = sanitized_image_bytes(file, ext)
+    if error:
+        return error
+    with open(filepath, "wb") as f:
+        f.write(image_bytes or b"")
+    return None
+
+
+def using_supabase_storage() -> bool:
+    return current_app.config.get("STORAGE_BACKEND") == "supabase"
+
+
+def storage_public_url(object_name: str) -> str:
+    if not using_supabase_storage():
+        return current_app.config["UPLOAD_URL"] + object_name
+    base = current_app.config["SUPABASE_URL"].rstrip("/")
+    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
+    return f"{base}/storage/v1/object/public/{bucket}/{object_name}"
+
+
+def save_storage_object(object_name: str, data: bytes, content_type: str) -> str:
+    """Save bytes to Supabase Storage or local uploads and return public URL."""
+    if not using_supabase_storage():
+        upload_dir = current_app.config["UPLOAD_FOLDER"]
+        os.makedirs(upload_dir, exist_ok=True)
+        with open(os.path.join(upload_dir, object_name), "wb") as f:
+            f.write(data)
+        return current_app.config["UPLOAD_URL"] + object_name
+
+    base = current_app.config["SUPABASE_URL"].rstrip("/")
+    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
+    key = current_app.config["SUPABASE_SERVICE_ROLE_KEY"]
+    url = f"{base}/storage/v1/object/{bucket}/{object_name}"
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {key}",
+            "apikey": key,
+            "Content-Type": content_type,
+            "x-upsert": "true",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20):
+            pass
+    except Exception as e:
+        current_app.logger.exception("Supabase Storage upload failed")
+        raise RuntimeError("Could not upload file to Supabase Storage.") from e
+    return storage_public_url(object_name)
+
+
+def delete_storage_object(url_or_path: str):
+    """Delete a stored object where possible. Best-effort only."""
+    object_name = os.path.basename(url_or_path or "")
+    if not object_name:
+        return
+    if not using_supabase_storage():
+        filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], object_name)
+        if os.path.exists(filepath):
+            try:
+                os.unlink(filepath)
+            except OSError:
+                pass
+        return
+
+    base = current_app.config["SUPABASE_URL"].rstrip("/")
+    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
+    key = current_app.config["SUPABASE_SERVICE_ROLE_KEY"]
+    req = urllib.request.Request(
+        f"{base}/storage/v1/object/{bucket}",
+        data=json.dumps({"prefixes": [object_name]}).encode("utf-8"),
+        method="DELETE",
+        headers={
+            "Authorization": f"Bearer {key}",
+            "apikey": key,
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception:
+        current_app.logger.warning("Supabase Storage delete failed for %s", object_name)
+
+
+def verify_turnstile() -> str | None:
+    """Verify Cloudflare Turnstile when configured; return error message if invalid."""
+    secret = current_app.config.get("TURNSTILE_SECRET_KEY")
+    if not secret:
+        return None
+    token = request.form.get("cf-turnstile-response") or ""
+    if not token:
+        return "Human verification is required."
+    data = urllib.parse.urlencode(
+        {"secret": secret, "response": token, "remoteip": request.remote_addr or ""}
+    ).encode("utf-8")
+    try:
+        req = urllib.request.Request("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        current_app.logger.warning("Turnstile verification request failed")
+        return "Human verification failed."
+    return None if result.get("success") else "Human verification failed."
+
+
+def calculate_cart_total(cart_json: str) -> tuple[float, list[dict], str | None]:
+    """Calculate cart total from trusted database prices, not browser prices."""
+    try:
+        cart = json.loads(cart_json or "[]")
+    except json.JSONDecodeError:
+        return 0.0, [], "Invalid cart data."
+
+    if not isinstance(cart, list) or not cart:
+        return 0.0, [], "Cart is empty."
+
+    db = get_db()
+    total = 0.0
+    items = []
+    for raw_item in cart:
+        if not isinstance(raw_item, dict):
+            return 0.0, [], "Invalid cart item."
+
+        product_id = str(raw_item.get("product_id") or "").strip()
+        variant_id = str(raw_item.get("variant_id") or "").strip()
+        try:
+            quantity = int(raw_item.get("quantity") or 1)
+        except (TypeError, ValueError):
+            return 0.0, [], "Invalid cart quantity."
+
+        if not product_id or quantity < 1 or quantity > 20:
+            return 0.0, [], "Invalid cart item."
+
+        product = db.execute(
+            "SELECT id, name, base_price FROM products WHERE id=? LIMIT 1",
+            (product_id,),
+        ).fetchone()
+        if not product:
+            return 0.0, [], "Product no longer exists."
+
+        unit_price = float(product["base_price"] or 0)
+        item_name = product["name"]
+        if variant_id:
+            variant = db.execute(
+                "SELECT id, color, size, stock_quantity, price_override FROM product_variants WHERE id=? AND product_id=? LIMIT 1",
+                (variant_id, product_id),
+            ).fetchone()
+            if not variant:
+                return 0.0, [], "Product variant no longer exists."
+            if int(variant["stock_quantity"] or 0) < quantity:
+                return 0.0, [], f"Not enough stock for {product['name']}."
+            if variant["price_override"] is not None:
+                unit_price = float(variant["price_override"])
+            labels = [v for v in (variant["color"], variant["size"]) if v]
+            if labels:
+                item_name += " - " + " / ".join(labels)
+
+        line_total = round(unit_price * quantity, 2)
+        total += line_total
+        items.append(
+            {
+                "product_id": product_id,
+                "variant_id": variant_id or None,
+                "name": item_name,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_total": line_total,
+            }
+        )
+
+    return round(total, 2), items, None
+
+
+def cart_hash(items: list[dict]) -> str:
+    """Create a stable hash for the server-priced cart contents."""
+    normalized = [
+        {
+            "product_id": item["product_id"],
+            "variant_id": item["variant_id"] or "",
+            "quantity": item["quantity"],
+            "unit_price": item["unit_price"],
+        }
+        for item in items
+    ]
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+# Allowed MIME types for uploads
+ALLOWED_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "video/mp4",
+}
+
 ALLOWED_MEDIA_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "mp4"}
 
 
@@ -46,6 +308,11 @@ ALLOWED_MEDIA_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "mp4"}
 @api_bp.route("/api/contact", methods=["POST"])
 def contact():
     """Public contact form submission."""
+    turnstile_error = verify_turnstile()
+    if turnstile_error:
+        log_audit("contact.turnstile_failed", ip_address=request.remote_addr)
+        return err(turnstile_error)
+
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip()
     subject = (request.form.get("subject") or "").strip()
@@ -90,6 +357,16 @@ def get_posts_api():
     return jsonify({"ok": True, "posts": [dict(r) for r in rows]})
 
 
+@api_bp.route("/api/cart/quote", methods=["POST"])
+def cart_quote():
+    """Return a server-confirmed quote for the cart."""
+    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    if cart_error:
+        log_audit("cart.quote_failed", ip_address=request.remote_addr, reason=cart_error)
+        return err(cart_error)
+    return jsonify({"ok": True, "total_amount": total_amount, "items": items})
+
+
 # ── Image upload ──────────────────────────────────────────────
 
 
@@ -107,16 +384,26 @@ def upload_image():
     if not allowed_file(file.filename):
         return err("Only JPEG, PNG, GIF and WebP images are allowed.")
 
-    upload_dir = current_app.config["UPLOAD_FOLDER"]
-    os.makedirs(upload_dir, exist_ok=True)
+    # MIME type validation
+    mime_type = detect_mime(file)
+    if mime_type not in ALLOWED_MIME_TYPES or not mime_type.startswith("image/"):
+        return err("Invalid file type. Only JPEG, PNG, GIF and WebP images are allowed.")
 
     ext = file.filename.rsplit(".", 1)[1].lower()
     filename = gen_id() + "." + ext
-    filepath = os.path.join(upload_dir, filename)
-    file.save(filepath)
+    image_bytes, image_error = sanitized_image_bytes(file, ext)
+    if image_error:
+        log_audit("upload.image_rejected", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, reason=image_error)
+        return err(image_error)
+    try:
+        url = save_storage_object(filename, image_bytes or b"", mime_type)
+    except RuntimeError as e:
+        return err(str(e), 502)
+    current_app.logger.info("uploaded image %s by user %s", filename, request.current_user.get("id"))
+    log_audit("upload.image", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, filename=filename)
 
     return ok(
-        "Uploaded.", path=current_app.config["UPLOAD_URL"] + filename, filename=filename
+        "Uploaded.", path=url, filename=filename
     )
 
 
@@ -333,19 +620,19 @@ def save_settings():
     db = get_db()
     fb_token = request.form.get("fb_token")
     if fb_token is not None:
-        db.execute('DELETE FROM social_tokens WHERE platform="facebook"')
+        db.execute("DELETE FROM social_tokens WHERE platform='facebook'")
         if fb_token.strip():
             db.execute(
-                'INSERT INTO social_tokens (id, platform, access_token) VALUES (?, "facebook", ?)',
+                "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'facebook', ?)",
                 (gen_id(), fb_token.strip()),
             )
 
     ig_token = request.form.get("ig_token")
     if ig_token is not None:
-        db.execute('DELETE FROM social_tokens WHERE platform="instagram"')
+        db.execute("DELETE FROM social_tokens WHERE platform='instagram'")
         if ig_token.strip():
             db.execute(
-                'INSERT INTO social_tokens (id, platform, access_token) VALUES (?, "instagram", ?)',
+                "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'instagram', ?)",
                 (gen_id(), ig_token.strip()),
             )
     db.commit()
@@ -403,14 +690,7 @@ def delete_gallery_item():
         "SELECT image_path FROM gallery_items WHERE id=? LIMIT 1", (item_id,)
     ).fetchone()
     if row and row["image_path"]:
-        filepath = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), row["image_path"]
-        )
-        if os.path.exists(filepath):
-            try:
-                os.unlink(filepath)
-            except OSError:
-                pass
+        delete_storage_object(row["image_path"])
 
     db.execute("DELETE FROM gallery_items WHERE id=?", (item_id,))
     db.commit()
@@ -480,14 +760,26 @@ def upload_media():
     if ext not in ALLOWED_MEDIA_EXTENSIONS:
         return err("Only images (JPEG, PNG, GIF, WebP) and MP4 video are allowed.")
 
-    upload_dir = current_app.config["UPLOAD_FOLDER"]
-    os.makedirs(upload_dir, exist_ok=True)
-    filename = gen_id() + "." + ext
-    filepath = os.path.join(upload_dir, filename)
-    file.save(filepath)
+    # MIME type validation
+    mime_type = detect_mime(file)
+    if mime_type not in ALLOWED_MIME_TYPES:
+        return err("Invalid file type. Only JPEG, PNG, GIF, WebP images and MP4 video are allowed.")
 
-    url = current_app.config["UPLOAD_URL"] + filename
+    filename = gen_id() + "." + ext
     media_type = "video" if ext == "mp4" else "image"
+    if media_type == "image":
+        data, image_error = sanitized_image_bytes(file, ext)
+        if image_error:
+            log_audit("upload.media_rejected", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, reason=image_error)
+            return err(image_error)
+    else:
+        file.seek(0)
+        data = file.read()
+
+    try:
+        url = save_storage_object(filename, data or b"", mime_type)
+    except RuntimeError as e:
+        return err(str(e), 502)
     media_id = gen_id()
     db = get_db()
     db.execute(
@@ -495,6 +787,8 @@ def upload_media():
         (media_id, media_type, url),
     )
     db.commit()
+    current_app.logger.info("uploaded media %s by user %s", filename, request.current_user.get("id"))
+    log_audit("upload.media", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, filename=filename, media_type=media_type)
     return ok("Media uploaded.", url=url)
 
 
@@ -503,6 +797,9 @@ def upload_media():
 def delete_media():
     media_id = request.form.get("id")
     db = get_db()
+    row = db.execute("SELECT url FROM media_library WHERE id=? LIMIT 1", (media_id,)).fetchone()
+    if row and row["url"]:
+        delete_storage_object(row["url"])
     db.execute("DELETE FROM media_library WHERE id=?", (media_id,))
     db.commit()
     return ok("Deleted.")
@@ -615,10 +912,10 @@ def delete_prod_image():
 @jwt_required
 def create_razorpay_order():
     """Create a Razorpay order. Returns order_id and amount in paise."""
-    try:
-        total_amount = float(request.form.get("total_amount") or 0)
-    except ValueError:
-        return err("Invalid amount.")
+    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    if cart_error:
+        current_app.logger.warning("cart validation failed during Razorpay create: %s", cart_error)
+        return err(cart_error)
     if total_amount <= 0:
         return err("Amount must be greater than zero.")
 
@@ -637,11 +934,22 @@ def create_razorpay_order():
             "amount": amount_paise,
             "currency": "INR",
             "payment_capture": "1",
-            "notes": {"user_id": request.current_user.get("id", "guest")},
+            "notes": {
+                "user_id": request.current_user.get("id", "guest"),
+                "item_count": str(sum(item["quantity"] for item in items)),
+                "cart_hash": cart_hash(items),
+            },
         }
         order = client.order.create(data=order_data)
-        return jsonify({"ok": True, "order_id": order["id"], "amount": amount_paise})
+        current_app.logger.info(
+            "created Razorpay order %s for user %s amount %s",
+            order["id"],
+            request.current_user.get("id", "guest"),
+            amount_paise,
+        )
+        return jsonify({"ok": True, "order_id": order["id"], "amount": amount_paise, "total_amount": total_amount})
     except Exception as e:
+        current_app.logger.warning("Razorpay order creation failed: %s", e)
         return err(f"Razorpay error: {str(e)}")
 
 
@@ -654,10 +962,10 @@ def verify_razorpay():
     email = (request.form.get("email") or "").strip()
     phone = (request.form.get("phone") or "").strip()
 
-    try:
-        total_amount = float(request.form.get("total_amount") or 0)
-    except ValueError:
-        total_amount = 0.0
+    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    if cart_error:
+        current_app.logger.warning("cart validation failed during Razorpay verify: %s", cart_error)
+        return err(cart_error)
 
     razorpay_payment_id = request.form.get("razorpay_payment_id")
     razorpay_order_id = request.form.get("razorpay_order_id")
@@ -683,7 +991,33 @@ def verify_razorpay():
             }
         )
     except razorpay.errors.SignatureVerificationError:
+        current_app.logger.warning("invalid Razorpay signature for payment %s", razorpay_payment_id)
         return err("Invalid payment signature")
+
+    amount_paise = int(total_amount * 100)
+    try:
+        payment = client.payment.fetch(razorpay_payment_id)
+        provider_order = client.order.fetch(razorpay_order_id)
+    except Exception as e:
+        current_app.logger.warning("Razorpay provider verification failed: %s", e)
+        return err("Could not verify payment with Razorpay.")
+
+    if payment.get("order_id") != razorpay_order_id:
+        current_app.logger.warning("Razorpay order mismatch for payment %s", razorpay_payment_id)
+        return err("Payment order mismatch.")
+    if int(payment.get("amount") or 0) != amount_paise or payment.get("currency") != "INR":
+        current_app.logger.warning("Razorpay amount mismatch for payment %s", razorpay_payment_id)
+        return err("Payment amount mismatch.")
+    if payment.get("status") != "captured":
+        current_app.logger.warning("Razorpay payment not completed: %s", payment.get("status"))
+        log_audit("payment.razorpay_not_captured", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, status=payment.get("status"))
+        return err("Payment is not completed.")
+    if int(provider_order.get("amount") or 0) != amount_paise:
+        current_app.logger.warning("Razorpay order amount mismatch for order %s", razorpay_order_id)
+        return err("Order amount mismatch.")
+    if (provider_order.get("notes") or {}).get("cart_hash") != cart_hash(items):
+        current_app.logger.warning("Razorpay cart hash mismatch for order %s", razorpay_order_id)
+        return err("Cart changed after payment order creation.")
 
     # Idempotency check - prevent duplicate orders for same payment
     db = get_db()
@@ -700,26 +1034,56 @@ def verify_razorpay():
     order_token = str(uuid.uuid4())
     order_id = gen_id()
 
-    db.execute(
-        """INSERT INTO orders (id, name, address, total_amount, payment_method,
-                              razorpay_payment_id, razorpay_order_id, order_token,
-                              customer_email, customer_phone, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            order_id,
-            name,
-            address,
-            total_amount,
-            "razorpay",
-            razorpay_payment_id,
-            razorpay_order_id,
-            order_token,
-            email,
-            phone,
-            "completed",
-        ),
-    )
-    db.commit()
+    try:
+        db.execute(
+            """INSERT INTO orders (id, name, address, total_amount, payment_method,
+                                  razorpay_payment_id, razorpay_order_id, order_token,
+                                  customer_email, customer_phone, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                order_id,
+                name,
+                address,
+                total_amount,
+                "razorpay",
+                razorpay_payment_id,
+                razorpay_order_id,
+                order_token,
+                email,
+                phone,
+                "completed",
+            ),
+        )
+
+        for item in items:
+            db.execute(
+                """INSERT INTO order_items
+                   (id, order_id, product_id, product_variant_id, quantity, price_at_time)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    gen_id(),
+                    order_id,
+                    item["product_id"],
+                    item["variant_id"],
+                    item["quantity"],
+                    item["unit_price"],
+                ),
+            )
+            if item["variant_id"]:
+                cur = db.execute(
+                    "UPDATE product_variants SET stock_quantity = stock_quantity - ? WHERE id=? AND stock_quantity >= ?",
+                    (item["quantity"], item["variant_id"], item["quantity"]),
+                )
+                if cur.rowcount != 1:
+                    raise ValueError(f"Not enough stock for {item['name']}.")
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        current_app.logger.warning("local order creation failed: %s", e)
+        return err("Could not create local order. Please contact support.")
+
+    current_app.logger.info("completed order %s for payment %s", order_id, razorpay_payment_id)
+    log_audit("payment.razorpay_completed", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id, payment_id=razorpay_payment_id)
 
     # Trigger notifications (async in production)
     try:
@@ -732,6 +1096,33 @@ def verify_razorpay():
     )
 
 
+@api_bp.route("/api/razorpay/webhook", methods=["POST"])
+def razorpay_webhook():
+    """Verify Razorpay webhooks and update known order state."""
+    secret = current_app.config.get("RAZORPAY_WEBHOOK_SECRET")
+    if not secret:
+        return err("Razorpay webhook is not configured.", 501)
+
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    body = request.get_data() or b""
+    expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        log_audit("payment.webhook_invalid_signature", ip_address=request.remote_addr)
+        return err("Invalid webhook signature.", 401)
+
+    payload = request.get_json(silent=True) or {}
+    event = payload.get("event", "")
+    payment = (((payload.get("payload") or {}).get("payment") or {}).get("entity") or {})
+    payment_id = payment.get("id")
+    if payment_id and event in {"payment.captured", "payment.failed"}:
+        status = "completed" if event == "payment.captured" else "payment_failed"
+        db = get_db()
+        db.execute("UPDATE orders SET status=? WHERE razorpay_payment_id=?", (status, payment_id))
+        db.commit()
+    log_audit("payment.razorpay_webhook", ip_address=request.remote_addr, event=event, payment_id=payment_id)
+    return ok("Webhook received.")
+
+
 # ── Paytm Endpoints (Full verification) ───────────────────────
 
 
@@ -739,6 +1130,8 @@ def verify_razorpay():
 @jwt_required
 def create_paytm_order():
     """Create a Paytm order. Returns order_id and txnToken."""
+    return err("Paytm checkout is not enabled yet.", 501)
+
     try:
         total_amount = float(request.form.get("total_amount") or 0)
     except ValueError:
@@ -770,6 +1163,8 @@ def create_paytm_order():
 @jwt_required
 def verify_paytm():
     """Verify Paytm payment with checksum validation and create order."""
+    return err("Paytm checkout is not enabled yet.", 501)
+
     name = (request.form.get("name") or "").strip()
     address = (request.form.get("address") or "").strip()
     email = (request.form.get("email") or "").strip()

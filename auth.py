@@ -4,6 +4,9 @@ Handles login, register, logout, JWT tokens, password change, and auth modals.
 """
 
 from functools import wraps
+import json
+import urllib.parse
+import urllib.request
 
 from flask import (
     Blueprint,
@@ -18,19 +21,49 @@ from flask import (
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 
+try:
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token as google_id_token
+except ImportError:
+    google_requests = None
+    google_id_token = None
+
 from models import (
     clear_tokens,
     create_access_token,
     create_refresh_token,
+    ensure_builtin_admin_user,
     gen_id,
     get_db,
     get_settings,
     get_user_by_access_token,
+    log_audit,
     store_tokens,
     verify_refresh_token,
 )
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def verify_turnstile() -> str | None:
+    """Verify Cloudflare Turnstile when configured; return an error message if invalid."""
+    secret = current_app.config.get("TURNSTILE_SECRET_KEY")
+    if not secret:
+        return None
+    token = request.form.get("cf-turnstile-response") or ""
+    if not token:
+        return "Human verification is required."
+    data = urllib.parse.urlencode(
+        {"secret": secret, "response": token, "remoteip": request.remote_addr or ""}
+    ).encode("utf-8")
+    try:
+        req = urllib.request.Request("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        current_app.logger.warning("Turnstile verification request failed")
+        return "Human verification failed."
+    return None if result.get("success") else "Human verification failed."
 
 
 # ── JWT Cookie helpers ────────────────────────────────────────
@@ -157,7 +190,16 @@ def admin_required(f):
 
 
 def get_sess():
-    """Get current session user data or None."""
+    """Get current user display data from JWT, falling back to legacy session."""
+    token = get_access_token_from_cookie()
+    if token:
+        user = get_user_by_access_token(token)
+        if user:
+            return {
+                "id": user["id"],
+                "role": user["role"],
+                "username": "Admin" if user["id"] == "admin" else user["id"],
+            }
     return session.get("simar_user")
 
 
@@ -172,9 +214,13 @@ def clear_sess():
 
 
 def is_admin() -> bool:
-    """Check if current session user is admin (backward compat)."""
-    s = get_sess()
-    return s is not None and s.get("role") == "admin"
+    """Check if current user is admin via JWT only."""
+    token = get_access_token_from_cookie()
+    if token:
+        user = get_user_by_access_token(token)
+        if user and user.get("role") == "admin":
+            return True
+    return False
 
 
 def require_admin(f):
@@ -230,6 +276,7 @@ def login():
     # Admin shortcut — compare via hash
     if username == current_app.config["ADMIN_USER"]:
         if check_password_hash(current_app.config["ADMIN_PASS_HASH"], password):
+            ensure_builtin_admin_user()
             access_token, access_expires = create_access_token("admin", "admin")
             refresh_token, refresh_expires = create_refresh_token("admin")
             store_tokens(
@@ -270,6 +317,8 @@ def login():
         set_sess({"role": user["role"], "username": user["username"], "id": user["id"]})
         return response
 
+    current_app.logger.warning("failed login for username %r from %s", username, request.remote_addr)
+    log_audit("auth.login_failed", ip_address=request.remote_addr, username=username)
     return jsonify({"ok": False, "msg": "Incorrect username or password."}), 401
 
 
@@ -279,6 +328,11 @@ def login():
 @auth_bp.route("/auth/register", methods=["POST"])
 def register():
     """Handle registration via AJAX POST. Returns JWT tokens in HttpOnly cookies."""
+    turnstile_error = verify_turnstile()
+    if turnstile_error:
+        log_audit("auth.register_turnstile_failed", ip_address=request.remote_addr)
+        return jsonify({"ok": False, "msg": turnstile_error}), 400
+
     username = (request.form.get("username") or "").strip()
     password = request.form.get("password") or ""
     password2 = request.form.get("password2") or ""
@@ -297,6 +351,8 @@ def register():
         "SELECT id FROM users WHERE username = ? LIMIT 1", (username,)
     ).fetchone()
     if existing:
+        current_app.logger.warning("duplicate registration attempt for username %r from %s", username, request.remote_addr)
+        log_audit("auth.register_duplicate", ip_address=request.remote_addr, username=username)
         return jsonify({"ok": False, "msg": "Username already taken."}), 409
 
     user_id = gen_id()
@@ -305,6 +361,8 @@ def register():
         (user_id, username, generate_password_hash(password), "user"),
     )
     db.commit()
+    current_app.logger.info("registered user %s from %s", user_id, request.remote_addr)
+    log_audit("auth.register_success", actor_id=user_id, ip_address=request.remote_addr, username=username)
 
     access_token, access_expires = create_access_token(user_id, "user")
     refresh_token, refresh_expires = create_refresh_token(user_id)
@@ -323,12 +381,37 @@ def register():
 
 @auth_bp.route("/auth/google", methods=["POST"])
 def google_login():
-    """Simulated Google sign-in. Returns JWT tokens in HttpOnly cookies."""
-    email = (request.form.get("email") or "").strip()
-    if not email or "@" not in email:
-        return jsonify({"ok": False, "msg": "Invalid email."}), 400
+    """Google sign-in using a verified Google ID token."""
+    client_id = current_app.config.get("GOOGLE_CLIENT_ID")
+    credential = request.form.get("credential") or ""
+    if not client_id:
+        current_app.logger.warning("Google login attempted without GOOGLE_CLIENT_ID")
+        log_audit("auth.google_not_configured", ip_address=request.remote_addr)
+        return jsonify({"ok": False, "msg": "Google sign-in is not configured."}), 501
+    if google_id_token is None or google_requests is None:
+        current_app.logger.warning("Google login attempted without google-auth installed")
+        return jsonify({"ok": False, "msg": "Google auth dependency is not installed."}), 501
+    if not credential:
+        return jsonify({"ok": False, "msg": "Missing Google credential."}), 400
 
-    name = email.split("@")[0]
+    try:
+        payload = google_id_token.verify_oauth2_token(
+            credential, google_requests.Request(), client_id
+        )
+    except ValueError:
+        current_app.logger.warning("invalid Google ID token from %s", request.remote_addr)
+        log_audit("auth.google_invalid", ip_address=request.remote_addr)
+        return jsonify({"ok": False, "msg": "Invalid Google sign-in."}), 401
+
+    if payload.get("aud") != client_id:
+        current_app.logger.warning("Google token audience mismatch from %s", request.remote_addr)
+        return jsonify({"ok": False, "msg": "Invalid Google sign-in."}), 401
+
+    email = (payload.get("email") or "").strip().lower()
+    if not email or not payload.get("email_verified"):
+        return jsonify({"ok": False, "msg": "Google email is not verified."}), 401
+
+    name = (payload.get("name") or email.split("@")[0]).strip()
     db = get_db()
     user = db.execute(
         "SELECT * FROM users WHERE google_email = ? LIMIT 1", (email,)
@@ -336,12 +419,22 @@ def google_login():
 
     if not user:
         user_id = gen_id()
+        username_base = "".join(
+            ch for ch in (email.split("@")[0] or "google_user") if ch.isalnum() or ch in "_-"
+        )[:30] or "google_user"
+        username = username_base
+        suffix = 2
+        while db.execute("SELECT id FROM users WHERE username = ? LIMIT 1", (username,)).fetchone():
+            username = f"{username_base}_{suffix}"
+            suffix += 1
         db.execute(
             'INSERT INTO users (id, username, password, google_email, is_google, role) VALUES (?, ?, "", ?, 1, ?)',
-            (user_id, name, email, "user"),
+            (user_id, username, email, "user"),
         )
         db.commit()
-        user_data = {"id": user_id, "username": name, "role": "user"}
+        user_data = {"id": user_id, "username": username, "role": "user"}
+        current_app.logger.info("registered Google user %s from %s", user_id, request.remote_addr)
+        log_audit("auth.google_register", actor_id=user_id, ip_address=request.remote_addr, email=email)
     else:
         user_data = {
             "id": user["id"],

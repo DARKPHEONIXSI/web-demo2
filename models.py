@@ -1,28 +1,99 @@
 """
 models.py — Database helpers for the On Ice skating blog.
-Uses local SQLite database.
+Uses SQLite locally or Supabase/Postgres via DATABASE_URL.
 """
 
 import os
 import secrets
 import sqlite3
+import json
 from datetime import date, datetime, timedelta
 
 import jwt
 from flask import current_app, g
 
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
+
 # ── Connection management ────────────────────────────────────
+
+
+class PgRow(dict):
+    """Dictionary row that also supports integer indexes like sqlite3.Row."""
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
+
+
+class PgCursor:
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.rowcount = -1
+
+    def execute(self, query, params=()):
+        query = self._translate_query(query)
+        self.cursor.execute(query, params or ())
+        self.rowcount = self.cursor.rowcount
+        return self
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        return PgRow(row) if row is not None else None
+
+    def fetchall(self):
+        return [PgRow(row) for row in self.cursor.fetchall()]
+
+    @staticmethod
+    def _translate_query(query: str) -> str:
+        return (
+            query.replace("datetime(\"now\")", "CURRENT_TIMESTAMP")
+            .replace("datetime('now')", "CURRENT_TIMESTAMP")
+            .replace("?", "%s")
+        )
+
+
+class PgConnection:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, query, params=()):
+        return PgCursor(self.conn.cursor()).execute(query, params)
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+
+def using_postgres() -> bool:
+    return bool(current_app.config.get("DATABASE_URL"))
 
 
 def get_db():
     """Get (or create) a database connection for the current request."""
     if "db" not in g:
-        # Connect to SQLite
-        conn = sqlite3.connect(
-            current_app.config["DATABASE_PATH"], detect_types=sqlite3.PARSE_DECLTYPES
-        )
-        conn.row_factory = sqlite3.Row
-        g.db = conn
+        database_url = current_app.config.get("DATABASE_URL")
+        if database_url:
+            if psycopg is None:
+                raise RuntimeError("psycopg is required for Supabase/Postgres DATABASE_URL")
+            conn = psycopg.connect(database_url, row_factory=dict_row)
+            g.db = PgConnection(conn)
+        else:
+            conn = sqlite3.connect(
+                current_app.config["DATABASE_PATH"], detect_types=sqlite3.PARSE_DECLTYPES
+            )
+            conn.row_factory = sqlite3.Row
+            g.db = conn
     return g.db
 
 
@@ -33,12 +104,47 @@ def close_db(e=None):
         db.close()
 
 
-def init_db():
-    """Initialize the database from schema.sql if tables don't exist."""
+def ensure_runtime_schema():
+    """Apply small additive runtime migrations."""
     db = get_db()
-    schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
+    if using_postgres():
+        try:
+            db.execute("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_id TEXT NOT NULL DEFAULT ''")
+            db.commit()
+        except Exception:
+            db.rollback()
+    else:
+        order_item_cols = [r[1] for r in db.execute("PRAGMA table_info(order_items)").fetchall()]
+        if order_item_cols and "product_id" not in order_item_cols:
+            db.execute("ALTER TABLE order_items ADD COLUMN product_id TEXT NOT NULL DEFAULT ''")
+
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS audit_logs (
+             id TEXT NOT NULL PRIMARY KEY,
+             event_type TEXT NOT NULL,
+             actor_id TEXT DEFAULT NULL,
+             ip_address TEXT DEFAULT NULL,
+             detail TEXT NOT NULL DEFAULT '',
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.commit()
+
+
+def init_db():
+    """Initialize the database if tables don't exist."""
+    db = get_db()
+    schema_name = "schema_supabase.sql" if using_postgres() else "schema.sql"
+    schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), schema_name)
     with open(schema_path, encoding="utf-8") as f:
-        db.executescript(f.read())
+        sql = f.read()
+    if using_postgres():
+        for statement in sql.split(";"):
+            statement = statement.strip()
+            if statement:
+                db.execute(statement)
+    else:
+        db.executescript(sql)
     db.commit()
 
 
@@ -196,6 +302,35 @@ def clear_tokens(user_id: str):
         (user_id,),
     )
     db.commit()
+
+
+def ensure_builtin_admin_user():
+    """Ensure the configured built-in admin can participate in JWT auth."""
+    db = get_db()
+    db.execute(
+        """INSERT INTO users (id, username, password, role, is_google)
+           VALUES ('admin', ?, ?, 'admin', 0)
+           ON CONFLICT(id) DO UPDATE SET
+             username = EXCLUDED.username,
+             password = EXCLUDED.password,
+             role = 'admin',
+             is_google = 0""",
+        (current_app.config["ADMIN_USER"], current_app.config["ADMIN_PASS_HASH"]),
+    )
+    db.commit()
+
+
+def log_audit(event_type: str, actor_id: str | None = None, ip_address: str | None = None, **detail):
+    """Persist a structured audit event without interrupting the request."""
+    try:
+        db = get_db()
+        db.execute(
+            "INSERT INTO audit_logs (id, event_type, actor_id, ip_address, detail) VALUES (?, ?, ?, ?, ?)",
+            (gen_id(), event_type, actor_id, ip_address, json.dumps(detail, sort_keys=True)),
+        )
+        db.commit()
+    except Exception:
+        current_app.logger.exception("failed to write audit log for %s", event_type)
 
 
 def get_user_by_access_token(access_token: str) -> dict | None:

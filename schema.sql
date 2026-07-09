@@ -20,15 +20,17 @@ INSERT OR IGNORE INTO settings (setting_key, setting_val) VALUES
 
 -- USERS
 CREATE TABLE IF NOT EXISTS users (
-  id             TEXT    NOT NULL PRIMARY KEY,
-  username       TEXT    NOT NULL UNIQUE,
-  password       TEXT    NOT NULL DEFAULT '',
-  google_email   TEXT    DEFAULT NULL,
-  is_google      INTEGER NOT NULL DEFAULT 0,
-  role           TEXT    NOT NULL DEFAULT 'user' CHECK(role IN ('user','admin')),
-  jwt_token      TEXT    DEFAULT NULL,
-  jwt_expires_at TIMESTAMP DEFAULT NULL,
-  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  id                 TEXT    NOT NULL PRIMARY KEY,
+  username           TEXT    NOT NULL UNIQUE,
+  password           TEXT    NOT NULL DEFAULT '',
+  google_email       TEXT    DEFAULT NULL,
+  is_google          INTEGER NOT NULL DEFAULT 0,
+  role               TEXT    NOT NULL DEFAULT 'user' CHECK(role IN ('user','admin')),
+  jwt_token          TEXT    DEFAULT NULL,
+  jwt_expires_at     TIMESTAMP DEFAULT NULL,
+  refresh_token      TEXT    DEFAULT NULL,
+  refresh_expires_at TIMESTAMP DEFAULT NULL,
+  created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- POSTS
@@ -82,7 +84,7 @@ CREATE TABLE IF NOT EXISTS techniques (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT OR IGNORE INTO techniques (id, title, title, title, icon, excerpt, body, sort_order) VALUES
+INSERT OR IGNORE INTO techniques (id, title, icon, excerpt, body, sort_order) VALUES
 ('t1','Landing Your First Axel','🎯',
  'The Axel is the only jump that takes off from a forward outside edge. Here is the complete breakdown.',
  '<h3>Why It Is Different</h3><p>The Axel takes off forward — making it the most challenging single jump.</p><h3>The Take-Off</h3><p>Drive your free knee up hard and fast. <strong>One explosive motion.</strong></p><blockquote>"The Axel does not care how badly you want it — only how well you have prepared."</blockquote>',
@@ -205,16 +207,31 @@ CREATE TABLE IF NOT EXISTS orders (
   order_token        TEXT    NOT NULL UNIQUE,
   razorpay_payment_id TEXT   DEFAULT NULL UNIQUE,
   razorpay_order_id   TEXT   DEFAULT NULL,
+  paytm_txn_id         TEXT   DEFAULT NULL UNIQUE,
+  customer_email       TEXT   DEFAULT '',
+  customer_phone       TEXT   DEFAULT '',
   created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- AUDIT LOGS
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id          TEXT    NOT NULL PRIMARY KEY,
+  event_type  TEXT    NOT NULL,
+  actor_id    TEXT    DEFAULT NULL,
+  ip_address  TEXT    DEFAULT NULL,
+  detail      TEXT    NOT NULL DEFAULT '',
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ORDER ITEMS
 CREATE TABLE IF NOT EXISTS order_items (
   id                 TEXT    NOT NULL PRIMARY KEY,
   order_id           TEXT    NOT NULL,
-  product_variant_id TEXT    NOT NULL,
+  product_id         TEXT    NOT NULL,
+  product_variant_id TEXT    DEFAULT NULL,
   quantity           INTEGER NOT NULL DEFAULT 1,
   price_at_time      REAL    NOT NULL,
   FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE RESTRICT,
   FOREIGN KEY(product_variant_id) REFERENCES product_variants(id) ON DELETE RESTRICT
 );

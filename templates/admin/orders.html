@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders - {{ settings.get('blog_name', 'On Ice') }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}?v=2.0">
+</head>
+<body style="padding:2rem; background:var(--surface); color:var(--on-surface);">
+  <main style="max-width:1100px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:2rem;">
+      <div>
+        <div class="section-label">ADMIN</div>
+        <h1 class="section-title" style="margin:0;">Orders</h1>
+      </div>
+      <a class="gp-btn-secondary" href="{{ url_for('admin.admin_index') }}">Back to Dashboard</a>
+    </div>
+
+    {% if not orders %}
+      <p style="color:var(--on-surface-variant);">No orders yet.</p>
+    {% endif %}
+
+    {% for order in orders %}
+      <section style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem; margin-bottom:1rem;">
+        <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+          <div>
+            <strong>#{{ order.id[:8] }}</strong>
+            <div style="font-size:13px; color:var(--on-surface-variant);">{{ order.created_at }} · {{ order.payment_method }} · {{ order.status }}</div>
+            <div style="font-size:13px; color:var(--on-surface-variant);">{{ order.name }} · {{ order.customer_email or '' }} · {{ order.customer_phone or '' }}</div>
+          </div>
+          <div style="font-weight:700; color:var(--secondary);">₹{{ '%.2f' % order.total_amount }}</div>
+        </div>
+        <div style="margin-top:1rem; display:grid; gap:0.5rem;">
+          {% for item in order_items.get(order.id, []) %}
+            <div style="display:flex; justify-content:space-between; gap:1rem; font-size:14px; border-top:1px solid var(--isu-pale); padding-top:0.5rem;">
+              <span>{{ item.product_name or 'Product' }}{% if item.color or item.size %} - {{ item.color }} / {{ item.size }}{% endif %} × {{ item.quantity }}</span>
+              <span>₹{{ '%.2f' % item.price_at_time }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+
+    <h2 style="margin-top:2rem;">Recent Audit Events</h2>
+    <section style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem;">
+      {% for log in audit_logs %}
+        <div style="font-size:13px; border-bottom:1px solid var(--isu-pale); padding:0.5rem 0;">
+          <strong>{{ log.event_type }}</strong> · {{ log.created_at }} · {{ log.ip_address or '' }}
+          <pre style="white-space:pre-wrap; color:var(--on-surface-variant); margin:0.25rem 0 0;">{{ log.detail }}</pre>
+        </div>
+      {% endfor %}
+    </section>
+  </main>
+</body>
+</html>

@@ -48,10 +48,6 @@
                 <input type="radio" name="payment_method" value="razorpay" checked>
                 <span style="font-size:14px;">Razorpay (Cards, UPI, NetBanking)</span>
               </label>
-              <label style="display:flex; align-items:center; gap: 0.5rem; cursor:pointer; color:var(--on-surface);">
-                <input type="radio" name="payment_method" value="paytm">
-                <span style="font-size:14px;">Paytm Checkout</span>
-              </label>
             </div>
           </div>
 
@@ -71,43 +67,96 @@
 
 <script>
   let totalAmount = 0;
+  let checkoutCart = [];
+  let serverQuoteReady = false;
+  const itemsEl = document.getElementById('checkout-items');
+  const totalEl = document.getElementById('checkout-total');
+  const submitBtn = document.getElementById('pay-btn');
 
-  // ── Order Summary ──────────
-  (function() {
-    var cart = [];
-    try { cart = JSON.parse(localStorage.getItem('cart') || '[]'); }
-    catch(e) { cart = []; }
+  function saveCheckoutCart() {
+    localStorage.setItem('cart', JSON.stringify(checkoutCart));
+    localStorage.setItem('cartCount', checkoutCart.length);
+    if (typeof updateCartBadge === 'function') updateCartBadge();
+  }
 
-    var itemsEl = document.getElementById('checkout-items');
-    var totalEl = document.getElementById('checkout-total');
-    var submitBtn = document.getElementById('pay-btn');
+  window.removeCheckoutItem = function(index) {
+    checkoutCart.splice(index, 1);
+    saveCheckoutCart();
+    quoteCart();
+  };
 
-    if (cart.length === 0) {
-      itemsEl.innerHTML = '<p style="color:var(--text-muted);">Your cart is empty. <a href="/shop" style="color:var(--secondary);">Browse the shop →</a></p>';
-      totalEl.textContent = '₹0';
-      submitBtn.disabled = true;
-      submitBtn.style.opacity = '0.5';
+  window.clearCheckoutCart = function() {
+    checkoutCart = [];
+    localStorage.removeItem('cart');
+    localStorage.removeItem('cartCount');
+    if (typeof updateCartBadge === 'function') updateCartBadge();
+    quoteCart();
+  };
+
+  function renderEmptyCart() {
+    itemsEl.innerHTML = '<p style="color:var(--text-muted);">Your cart is empty. <a href="/shop" style="color:var(--secondary);">Browse the shop →</a></p>';
+    totalEl.textContent = '₹0';
+    totalAmount = 0;
+    serverQuoteReady = false;
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.5';
+  }
+
+  function quoteCart() {
+    try { checkoutCart = JSON.parse(localStorage.getItem('cart') || '[]'); }
+    catch(e) { checkoutCart = []; }
+
+    if (checkoutCart.length === 0) {
+      renderEmptyCart();
       return;
     }
 
-    var html = '<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;">';
-    cart.forEach(function(item) {
-      var price = parseFloat(item.price) || 0;
-      totalAmount += price;
-      html += '<li style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">'
-            + '<span style="color:var(--text-primary);">' + (item.name || 'Item') + '</span>'
-            + '<span style="color:var(--secondary);font-weight:600;white-space:nowrap;">₹' + price.toLocaleString('en-IN') + '</span>'
-            + '</li>';
-    });
-    html += '</ul>';
-    
-    itemsEl.innerHTML = html;
-    totalEl.textContent = '₹' + totalAmount.toLocaleString('en-IN');
-  })();
+    itemsEl.textContent = 'Calculating your items...';
+    totalEl.textContent = '₹0';
+    totalAmount = 0;
+    serverQuoteReady = false;
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.5';
+
+    var fd = new FormData();
+    fd.append('cart', JSON.stringify(checkoutCart));
+    fetch('/api/cart/quote', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) throw new Error(data.msg || 'Could not price cart.');
+        totalAmount = parseFloat(data.total_amount) || 0;
+        serverQuoteReady = true;
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        var html = '<ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.75rem;">';
+        data.items.forEach(function(item, index) {
+          html += '<li style="display:grid;grid-template-columns:1fr auto;gap:0.75rem;align-items:center;border-bottom:1px solid var(--isu-pale);padding-bottom:0.75rem;">'
+                + '<div><div style="color:var(--text-primary);font-weight:600;">' + (item.name || 'Item') + '</div>'
+                + '<div style="color:var(--text-muted);font-size:12px;">Qty: ' + item.quantity + ' · ₹' + Number(item.unit_price).toLocaleString('en-IN') + ' each</div></div>'
+                + '<div style="display:flex;align-items:center;gap:0.5rem;"><span style="color:var(--secondary);font-weight:600;white-space:nowrap;">₹' + Number(item.line_total).toLocaleString('en-IN') + '</span>'
+                + '<button type="button" onclick="removeCheckoutItem(' + index + ')" style="border:1px solid var(--isu-pale);background:transparent;color:var(--error);border-radius:999px;padding:0.25rem 0.65rem;cursor:pointer;">Remove</button></div>'
+                + '</li>';
+        });
+        html += '</ul><div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-top:0.75rem;"><p style="font-size:12px;color:var(--text-muted);margin:0;">Total confirmed by server.</p><button type="button" onclick="clearCheckoutCart()" style="border:1px solid var(--isu-pale);background:transparent;color:var(--text-muted);border-radius:999px;padding:0.35rem 0.75rem;cursor:pointer;">Clear cart</button></div>';
+        itemsEl.innerHTML = html;
+        totalEl.textContent = '₹' + totalAmount.toLocaleString('en-IN');
+      })
+      .catch(function(err) {
+        itemsEl.textContent = err.message || 'Could not price cart.';
+        totalEl.textContent = '₹0';
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+      });
+  }
+
+  quoteCart();
 
   function handleCheckout(e) {
     e.preventDefault();
-    if(totalAmount <= 0) return;
+    if(totalAmount <= 0 || !serverQuoteReady) {
+      alert('Please wait for the server-confirmed total.');
+      return;
+    }
 
     var name = document.getElementById('shipping-name').value;
     var address = document.getElementById('shipping-address').value;
@@ -121,7 +170,7 @@
     if (paymentMethod === 'razorpay') {
       // 1. Create Razorpay Order
       var fd = new FormData();
-      fd.append('total_amount', totalAmount);
+      fd.append('cart', JSON.stringify(checkoutCart));
 
       fetch('/api/create_razorpay_order', {
         method: 'POST',
@@ -149,9 +198,9 @@
              verifyFd.append('razorpay_payment_id', response.razorpay_payment_id);
              verifyFd.append('razorpay_order_id', response.razorpay_order_id);
              verifyFd.append('razorpay_signature', response.razorpay_signature);
-             verifyFd.append('name', name);
-             verifyFd.append('address', address);
-             verifyFd.append('total_amount', totalAmount);
+              verifyFd.append('name', name);
+              verifyFd.append('address', address);
+              verifyFd.append('cart', JSON.stringify(checkoutCart));
 
              fetch('/api/verify_razorpay', {
                 method: 'POST',
@@ -182,49 +231,6 @@
         
         payBtn.textContent = 'Pay Now';
         payBtn.disabled = false;
-      });
-
-    } else if (paymentMethod === 'paytm') {
-      // 1. Create Paytm Order
-      var fd = new FormData();
-      fd.append('total_amount', totalAmount);
-
-      fetch('/api/create_paytm_order', {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrf },
-        body: fd
-      }).then(r => r.json()).then(data => {
-        if (!data.ok) {
-          alert('Error creating Paytm order: ' + data.msg);
-          payBtn.textContent = 'Pay Now';
-          payBtn.disabled = false;
-          return;
-        }
-
-        // Normally we load Paytm CheckoutJS and invoke it. 
-        // For demonstration, we'll verify immediately using the mock token.
-        // Alert to simulate the flow
-        alert("Paytm transaction initiated. Token: " + data.txnToken + "\n\nSimulating successful JS Checkout return...");
-
-        var verifyFd = new FormData();
-        verifyFd.append('order_id', data.order_id);
-        verifyFd.append('name', name);
-        verifyFd.append('address', address);
-        verifyFd.append('total_amount', totalAmount);
-
-        fetch('/api/verify_paytm', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrf },
-          body: verifyFd
-        }).then(r => r.json()).then(vData => {
-          if(vData.ok) {
-            localStorage.removeItem('cart');
-            window.location.href = '/order-success';
-          } else {
-            alert(vData.msg);
-          }
-        });
-
       });
     }
   }

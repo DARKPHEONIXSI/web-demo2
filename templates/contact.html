@@ -51,6 +51,9 @@
         <button class="gp-btn-primary" id="sendBtn" style="padding: 0.75rem 2rem;">Send Message ✉</button>
         <span style="font-size:13px; color:var(--text-muted);">Usually replies within 24 hours</span>
       </div>
+      {% if config.TURNSTILE_SITE_KEY %}
+      <div class="cf-turnstile" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" style="margin-top:1rem;"></div>
+      {% endif %}
     </div>
 
     <!-- Success State -->
@@ -66,6 +69,7 @@
 {% endblock %}
 
 {% block scripts %}
+{% if config.TURNSTILE_SITE_KEY %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
 <script>
 function showErr(msg) {
   var el = document.getElementById('formErr');
@@ -78,6 +82,7 @@ document.getElementById('sendBtn').addEventListener('click', function() {
   var phone   = document.getElementById('cPhone').value.trim();
   var subject = document.getElementById('cSubject').value.trim();
   var message = document.getElementById('cMessage').value.trim();
+  var turnstile = document.querySelector('[name="cf-turnstile-response"]');
 
   if (!name)            { showErr('Please enter your name.'); return; }
   if (!email && !phone) { showErr('Please provide at least your email address or phone number.'); return; }
@@ -95,7 +100,8 @@ document.getElementById('sendBtn').addEventListener('click', function() {
           '&email=' + encodeURIComponent(email) +
           '&phone=' + encodeURIComponent(phone) +
           '&subject=' + encodeURIComponent(subject) +
-          '&message=' + encodeURIComponent(message)
+          '&message=' + encodeURIComponent(message) +
+          '&cf-turnstile-response=' + encodeURIComponent(turnstile ? turnstile.value : '')
   })
   .then(r => r.json())
   .then(d => {

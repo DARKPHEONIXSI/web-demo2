@@ -14,7 +14,7 @@ def migrate():
         schema = f.read()
 
     # We will rename the old tables, create the new ones from schema, copy data, and drop old.
-    tables_to_migrate = ["posts", "product_variants"]
+    tables_to_migrate = ["posts", "product_variants", "users"]
 
     for table in tables_to_migrate:
         print(f"Migrating {table}...")
@@ -59,6 +59,21 @@ def migrate():
         conn.execute("DROP TABLE product_variants_old")
     except Exception as e:
         print("  Error migrating product_variants:", e)
+
+    print("Copying data for users...")
+    try:
+        # Keep existing users, just copy over the fields that exist
+        conn.execute("DELETE FROM users")
+        conn.execute(
+            """
+            INSERT INTO users (id, username, password, google_email, is_google, role, jwt_token, jwt_expires_at, created_at)
+            SELECT id, username, password, google_email, is_google, role, jwt_token, jwt_expires_at, created_at
+            FROM users_old
+        """
+        )
+        conn.execute("DROP TABLE users_old")
+    except Exception as e:
+        print("  Error migrating users:", e)
 
     conn.execute("PRAGMA foreign_keys=ON")
     conn.commit()

@@ -6,13 +6,21 @@ All routes require admin authentication.
 import json
 
 # pyrefly: ignore [missing-import]
-from flask import Blueprint, current_app, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, make_response, redirect, render_template, request, url_for
 
 # pyrefly: ignore [missing-import]
 from werkzeug.security import check_password_hash
 
-from auth import get_sess, is_admin, set_sess
-from models import fmt_date, get_db, get_settings
+from auth import get_sess, is_admin, set_auth_cookies, set_sess
+from models import (
+    create_access_token,
+    create_refresh_token,
+    ensure_builtin_admin_user,
+    fmt_date,
+    get_db,
+    get_settings,
+    store_tokens,
+)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -160,19 +168,37 @@ def admin_login():
         # Check hardcoded admin via secure hash comparison
         if username == current_app.config["ADMIN_USER"]:
             if check_password_hash(current_app.config["ADMIN_PASS_HASH"], password):
+                ensure_builtin_admin_user()
+                access_token, access_expires = create_access_token("admin", "admin")
+                refresh_token, refresh_expires = create_refresh_token("admin")
+                store_tokens(
+                    "admin", access_token, access_expires, refresh_token, refresh_expires
+                )
                 set_sess({"role": "admin", "username": "Admin", "id": "admin"})
-                return redirect(url_for("admin.admin_index"))
+                response = make_response(redirect(url_for("admin.admin_index")))
+                set_auth_cookies(response, access_token, refresh_token)
+                return response
 
         # Check DB admins
         db = get_db()
         user = db.execute(
-            'SELECT * FROM users WHERE username=? AND role="admin" AND is_google=0 LIMIT 1',
+            "SELECT * FROM users WHERE username=? AND role='admin' AND is_google=0 LIMIT 1",
             (username,),
         ).fetchone()
         if user and check_password_hash(user["password"], password):
+            access_token, access_expires = create_access_token(user["id"], user["role"])
+            refresh_token, refresh_expires = create_refresh_token(user["id"])
+            store_tokens(
+                user["id"], access_token, access_expires, refresh_token, refresh_expires
+            )
             set_sess({"role": "admin", "username": user["username"], "id": user["id"]})
-            return redirect(url_for("admin.admin_index"))
+            response = make_response(redirect(url_for("admin.admin_index")))
+            set_auth_cookies(response, access_token, refresh_token)
+            return response
 
+        current_app.logger.warning(
+            "failed admin login for username %r from %s", username, request.remote_addr
+        )
         login_err = "Incorrect credentials."
 
     return render_template("admin/login.html", settings=s, login_err=login_err)
@@ -186,3 +212,35 @@ def admin_marketplace():
 
     s = get_settings()
     return render_template("admin/marketplace.html", settings=s)
+
+
+@admin_bp.route("/orders")
+def admin_orders():
+    """Order management dashboard. Admin only."""
+    if not is_admin():
+        return redirect(url_for("admin.admin_login"))
+
+    db = get_db()
+    orders = db.execute(
+        "SELECT * FROM orders ORDER BY created_at DESC LIMIT 100"
+    ).fetchall()
+    order_items = {}
+    for order in orders:
+        order_items[order["id"]] = db.execute(
+            """SELECT oi.*, p.name AS product_name, pv.color, pv.size
+               FROM order_items oi
+               LEFT JOIN products p ON p.id = oi.product_id
+               LEFT JOIN product_variants pv ON pv.id = oi.product_variant_id
+               WHERE oi.order_id=?""",
+            (order["id"],),
+        ).fetchall()
+    audit_logs = db.execute(
+        "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50"
+    ).fetchall()
+    return render_template(
+        "admin/orders.html",
+        settings=get_settings(),
+        orders=orders,
+        order_items=order_items,
+        audit_logs=audit_logs,
+    )

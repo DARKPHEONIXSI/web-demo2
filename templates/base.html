@@ -112,12 +112,18 @@
       localStorage.setItem('cartCount', cart.length);
     }
 
-    window.addToCart = function (btn, e, itemName, itemPrice) {
+    window.addToCart = function (btn, e, itemName, itemPrice, productId, variantId) {
       if (e) e.preventDefault();
       var cart = _getCart();
       var name = itemName || btn.dataset.name || 'Item';
       var price = parseFloat(itemPrice || btn.dataset.price || 0);
-      cart.push({ name: name, price: price });
+      cart.push({
+        product_id: productId || btn.dataset.productId || '',
+        variant_id: variantId || btn.dataset.variantId || '',
+        name: name,
+        price: price,
+        quantity: 1
+      });
       _saveCart(cart);
       updateCartBadge();
 
@@ -134,9 +140,15 @@
       }, 1500);
     };
 
-    window.addItemToCart = function (name, price) {
+    window.addItemToCart = function (name, price, productId, variantId) {
       var cart = _getCart();
-      cart.push({ name: name, price: parseFloat(price) || 0 });
+      cart.push({
+        product_id: productId || '',
+        variant_id: variantId || '',
+        name: name,
+        price: parseFloat(price) || 0,
+        quantity: 1
+      });
       _saveCart(cart);
       updateCartBadge();
     };

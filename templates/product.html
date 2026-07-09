@@ -87,7 +87,7 @@
 </section>
 
 <!-- Data Island for JS -->
-<div id="productData" data-base-price="{{ product['base_price'] }}" data-product-name="{{ product['name'] }}"
+<div id="productData" data-product-id="{{ product['id'] }}" data-base-price="{{ product['base_price'] }}" data-product-name="{{ product['name'] }}"
   data-variants="{{ variants|tojson|forceescape }}">
 </div>
 
@@ -96,6 +96,7 @@
 {% block scripts %}
 <script>
   const dataEl = document.getElementById('productData');
+  const productId = dataEl.dataset.productId;
   const basePrice = parseFloat(dataEl.dataset.basePrice) || 0;
   const productName = dataEl.dataset.productName;
   const variants = JSON.parse(dataEl.dataset.variants || '[]');
@@ -189,7 +190,7 @@
       if (currentVariant.price_override) itemPrice = currentVariant.price_override;
     }
 
-    window.addItemToCart(itemName, itemPrice);
+    window.addItemToCart(itemName, itemPrice, productId, currentVariant ? currentVariant.id : '');
     showToast('Added ' + itemName + ' to cart! 🛒');
   }
 

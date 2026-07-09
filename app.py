@@ -4,6 +4,7 @@ Entry point: python app.py
 """
 
 import math
+import os
 from datetime import date
 
 from flask import (
@@ -23,7 +24,7 @@ from flask_wtf.csrf import CSRFProtect
 from admin_bp import admin_bp
 from api import api_bp
 from auth import auth_bp, get_sess, is_admin
-from config import Config
+from config import Config, validate_config
 from models import (
     close_db,
     count_posts,
@@ -31,6 +32,7 @@ from models import (
     get_db,
     get_posts,
     get_settings,
+    ensure_runtime_schema,
 )
 
 csrf = CSRFProtect()
@@ -48,6 +50,7 @@ def create_app():
     """Application factory."""
     app = Flask(__name__)
     app.config.from_object(Config)
+    validate_config(app.config)
 
     # ── Security: HTTPS, HSTS, CSP, Secure Cookies ───────────────
     talisman.init_app(
@@ -58,12 +61,12 @@ def create_app():
         strict_transport_security_include_subdomains=True,
         content_security_policy={
             "default-src": "'self'",
-            "script-src": "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://checkout.razorpay.com",
+            "script-src": "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
             "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src": "'self' https://fonts.gstatic.com",
             "img-src": "'self' data: https:",
             "connect-src": "'self' https://api.razorpay.com",
-            "frame-src": "https://checkout.razorpay.com",
+            "frame-src": "https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
         },
         session_cookie_secure=app.config.get("FLASK_ENV") == "production",
         session_cookie_http_only=True,
@@ -73,19 +76,31 @@ def create_app():
     # ── Rate Limiting ─────────────────────────────────────────────
     limiter.init_app(app)
 
+    with app.app_context():
+        ensure_runtime_schema()
+
     # ── CSRF protection ───────────────────────────────────────────
     csrf.init_app(app)
-
-    # ── Exempt API endpoints from CSRF (they use JWT auth) ────────
-    csrf.exempt(api_bp)
 
     # ── Register blueprints ───────────────────────────────────────
     app.register_blueprint(auth_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(admin_bp)
 
-    # Note: Rate limiting is applied directly in api.py and auth.py
-    # since those routes are already decorated
+    # ── Strict limits for abuse-prone endpoints ───────────────────
+    endpoint_limits = {
+        "auth.login": "5 per minute",
+        "auth.register": "5 per minute",
+        "auth.google_login": "5 per minute",
+        "api.contact": "5 per minute",
+        "api.create_razorpay_order": "10 per minute",
+        "api.verify_razorpay": "10 per minute",
+        "api.create_paytm_order": "10 per minute",
+        "api.verify_paytm": "10 per minute",
+    }
+    for endpoint, limit in endpoint_limits.items():
+        if endpoint in app.view_functions:
+            app.view_functions[endpoint] = limiter.limit(limit)(app.view_functions[endpoint])
 
     # ── Database lifecycle ────────────────────────────────────────
     app.teardown_appcontext(close_db)
@@ -349,4 +364,4 @@ if __name__ == "__main__":
     print("  Local  : http://localhost:5000")
     print(f"  Network: http://{lan_ip}:5000  ← open this on your phone")
     print("  (phone must be on the same WiFi)\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=os.getenv("FLASK_ENV") != "production", host="0.0.0.0", port=5000)

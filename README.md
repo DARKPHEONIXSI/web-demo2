@@ -104,6 +104,19 @@ JWT_SECRET_KEY=your_jwt_secret_key
 ADMIN_USER=sir
 ADMIN_PASS_HASH=hashed_admin_password
 
+# Google Sign-In
+GOOGLE_CLIENT_ID=your_google_oauth_web_client_id.apps.googleusercontent.com
+
+# Supabase/Postgres
+# Use the Supabase pooler/session connection string from Project Settings > Database.
+DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-region.pooler.supabase.com:5432/postgres
+
+# Supabase Storage uploads
+STORAGE_BACKEND=supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_STORAGE_BUCKET=onice-uploads
+
 # Payment Gateways
 RAZORPAY_KEY_ID=rzp_test_your_razorpay_key
 RAZORPAY_KEY_SECRET=your_razorpay_secret
@@ -121,8 +134,9 @@ TWILIO_FROM_NUMBER=+15551234567
 ### Configuration
 
 The application uses:
-- **SQLite** for local development
-- **PostgreSQL** for production (via DATABASE_URL)
+- **SQLite** when `DATABASE_URL` is not set
+- **Supabase/Postgres** when `DATABASE_URL` is set
+- **Supabase Storage** for uploads when `STORAGE_BACKEND=supabase`
 - **HTTPs** enforced in production
 - **Secure cookies** with SameSite=Lax
 - **Rate limiting** to prevent abuse
@@ -135,7 +149,7 @@ The application uses:
 - `POST /auth/logout` - Logout and clear tokens
 - `POST /auth/refresh` - Refresh JWT access token
 - `GET /auth/me` - Get current user info
-- `GET /auth/google` - Simulated Google login
+- `POST /auth/google` - Google Sign-In with verified Google ID token
 
 ### Payment Processing
 - `POST /api/create_razorpay_order` - Create Razorpay order

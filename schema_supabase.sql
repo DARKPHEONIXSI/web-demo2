@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS products (
   id          TEXT    NOT NULL PRIMARY KEY,
   name        TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
-  base_price  REAL    NOT NULL DEFAULT 0.0,
+  base_price  NUMERIC(12,2) NOT NULL DEFAULT 0.00,
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   color          TEXT    NOT NULL DEFAULT '',
   size           TEXT    NOT NULL DEFAULT '',
   stock_quantity INTEGER NOT NULL DEFAULT 0,
-  price_override REAL    DEFAULT NULL,
+  price_override NUMERIC(12,2) DEFAULT NULL,
   FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
   UNIQUE(product_id, color, size)
 );
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS orders (
   id                  TEXT    NOT NULL PRIMARY KEY,
   name                TEXT    NOT NULL,
   address             TEXT    NOT NULL,
-  total_amount        REAL    NOT NULL,
+  total_amount        NUMERIC(12,2) NOT NULL,
   payment_method      TEXT    NOT NULL,
   status              TEXT    NOT NULL DEFAULT 'completed',
   order_token         TEXT    NOT NULL UNIQUE,
@@ -178,8 +178,36 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id         TEXT    NOT NULL,
   product_variant_id TEXT    DEFAULT NULL,
   quantity           INTEGER NOT NULL DEFAULT 1,
-  price_at_time      REAL    NOT NULL,
+  price_at_time      NUMERIC(12,2) NOT NULL,
   FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
   FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE RESTRICT,
   FOREIGN KEY(product_variant_id) REFERENCES product_variants(id) ON DELETE RESTRICT
 );
+
+CREATE INDEX IF NOT EXISTS idx_posts_status_date ON posts(status, post_date DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
+CREATE INDEX IF NOT EXISTS idx_gallery_items_sort_order ON gallery_items(sort_order);
+CREATE INDEX IF NOT EXISTS idx_media_library_uploaded_at ON media_library(uploaded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product_variant_id ON order_items(product_variant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE techniques ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_pages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gallery_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE media_library ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;

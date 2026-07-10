@@ -112,7 +112,9 @@ DATABASE_URL=postgresql://postgres.your-project-ref:your-password@aws-0-region.p
 # Supabase Storage uploads
 STORAGE_BACKEND=supabase
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_or_secret_key
+# Or use Supabase's newer key name instead:
+# SUPABASE_SECRET_KEY=your_supabase_secret_key
 SUPABASE_STORAGE_BUCKET=onice-uploads
 
 # Payment Gateways

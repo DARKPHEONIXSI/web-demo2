@@ -22,6 +22,7 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-that-is-long-enough")
     monkeypatch.setenv("JWT_SECRET_KEY", "test-jwt-secret-key-that-is-long-enough")
     Config.DATABASE_PATH = str(tmp_path / "test.db")
+    Config.DATABASE_URL = ""
     Config.ADMIN_PASS_HASH = admin_hash
     Config.SECRET_KEY = "test-secret-key-that-is-long-enough"
     Config.JWT_SECRET_KEY = "test-jwt-secret-key-that-is-long-enough"
@@ -31,6 +32,7 @@ def app(tmp_path, monkeypatch):
         WTF_CSRF_ENABLED=False,
         GOOGLE_CLIENT_ID="client-id.apps.googleusercontent.com",
         RATELIMIT_ENABLED=False,
+        DATABASE_URL="",
     )
     with test_app.app_context():
         init_db()

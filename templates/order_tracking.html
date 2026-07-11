@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Order Tracking — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+
+{% block content %}
+<section class="section page-enter oi-page">
+  <div class="container oi-mid">
+    {% if not order %}
+    <div class="oi-page-hero center">
+      <h1 class="headline-md" style="color:var(--primary);">Order not found</h1>
+      <p style="color:var(--on-surface-variant);">Check your tracking link or contact support.</p>
+    </div>
+    {% else %}
+    <div class="section-header oi-page-hero center">
+      <div class="section-label">ORDER TRACKING</div>
+      <h1 class="section-title">Order #{{ order.id[:8] }}</h1>
+    </div>
+
+    <div class="oi-card" style="margin-bottom:1.5rem;">
+      <div class="oi-meta-grid">
+        <div class="oi-meta-tile"><strong>Payment</strong><span>{{ order.status|replace('_',' ')|title }}</span></div>
+        <div class="oi-meta-tile"><strong>Fulfillment</strong><span>{{ order.fulfillment_status|title }}</span></div>
+        <div class="oi-meta-tile"><strong>Total</strong><span>₹{{ '%.2f' % order.total_amount }}</span></div>
+        <div class="oi-meta-tile"><strong>Tracking</strong><span>{{ order.tracking_number or 'Not shipped yet' }}</span></div>
+      </div>
+      <div class="oi-action-row" style="margin-top:1rem;">
+        <a class="gp-btn-secondary" href="{{ url_for('invoice', order_token=order.order_token) }}">Invoice</a>
+        <a class="gp-btn-secondary" href="{{ url_for('returns', order_token=order.order_token) }}">Request Return</a>
+        {% if order.fulfillment_status in ['pending','packed'] %}<button class="gp-btn-secondary" onclick="cancelOrder()">Cancel Order</button>{% endif %}
+      </div>
+    </div>
+
+    <div class="oi-card">
+      <h2 class="headline-md" style="font-size:22px; margin-bottom:1rem;">Items</h2>
+      {% for item in items %}
+      <div style="display:flex; justify-content:space-between; gap:1rem; border-top:1px solid var(--isu-pale); padding:0.75rem 0;">
+        <span>{{ item.product_name or 'Product' }}{% if item.color or item.size %} - {{ item.color }} / {{ item.size }}{% endif %} × {{ item.quantity }}</span>
+        <span>₹{{ '%.2f' % item.price_at_time }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% if order %}
+<script>
+function cancelOrder() {
+  if(!confirm('Cancel this order?')) return;
+  var fd = new URLSearchParams(); fd.set('order_token', '{{ order.order_token }}');
+  fetch('/api/order/cancel', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+    .then(r=>r.json()).then(d=>{ showToast(d.msg, d.ok ? '' : 'error'); if(d.ok) setTimeout(()=>location.reload(), 700); });
+}
+</script>
+{% endif %}
+{% endblock %}

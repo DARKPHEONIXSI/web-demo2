@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }} — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block content %}
+<section class="section page-enter oi-page">
+  <div class="container oi-narrow">
+    <div class="oi-page-hero">
+      <div class="section-label">Store Policy</div>
+      <h1 class="section-title">{{ title }}</h1>
+    </div>
+    <div class="oi-card" style="color:var(--on-surface-variant); line-height:1.8;">
+      <p>{{ body }}</p>
+      <p>For questions, contact us through the contact page.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

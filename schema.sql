@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS posts (
   title      TEXT    NOT NULL,
   excerpt    TEXT    NOT NULL DEFAULT '',
   body       TEXT    NOT NULL,
+  cover_image TEXT   NOT NULL DEFAULT '',
+  category   TEXT    NOT NULL DEFAULT '',
+  tags       TEXT    NOT NULL DEFAULT '',
+  slug       TEXT    NOT NULL UNIQUE,
+  seo_title  TEXT    NOT NULL DEFAULT '',
+  seo_description TEXT NOT NULL DEFAULT '',
   author     TEXT    NOT NULL DEFAULT 'The Coach',
   author_id  TEXT    DEFAULT NULL,
   read_time  INTEGER NOT NULL DEFAULT 4,
@@ -51,27 +57,27 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 
 -- Seed posts
-INSERT OR IGNORE INTO posts (id, title, excerpt, body, author, read_time, pinned, post_date) VALUES
+INSERT OR IGNORE INTO posts (id, title, excerpt, body, category, tags, slug, author, read_time, pinned, post_date) VALUES
 ('p1',
  'First Day Back After the Break',
  'After two weeks away, stepping back onto the ice today reminded me exactly why I fell in love with this sport.',
  '<p>After two weeks away, stepping back onto the ice today reminded me exactly why I fell in love with this sport. The rink was empty when I arrived — just me, the cold air, and that familiar feeling of blades connecting with ice.</p><p>We started slow. Light stroking drills, some backward crossovers to warm up the legs. By the third lap I could feel the rust shaking off.</p><blockquote>"The ice does not care about your yesterday — only what you do today."</blockquote><p>Tomorrow we go again. Early start. Can''t wait.</p>',
- 'The Coach', 4, 1, '2024-04-10'),
+ 'Training', 'practice,comeback', 'first-day-back-after-the-break', 'The Coach', 4, 1, '2024-04-10'),
 ('p2',
  'Breakthrough Moment with the Junior Group',
  'Sometimes coaching is about waiting for the right moment. Today was one of those moments.',
  '<p>Sometimes coaching is about waiting for the right moment. Today was one of those moments for three of my students who have been working on their Axels for the past two months.</p><p>After the session, one of them skated over and said "Coach, I felt it." That is exactly what we are always chasing.</p>',
- 'The Coach', 3, 0, '2024-04-03'),
+ 'Coaching', 'juniors,axel', 'breakthrough-moment-with-the-junior-group', 'The Coach', 3, 0, '2024-04-03'),
 ('p3',
  'Competition Week — What Goes Through My Mind',
  'Standing at the boards during competition week is a different kind of pressure.',
  '<p>Standing at the boards during competition week is a different kind of pressure. As the coach, my job is mostly done. Three of the four skated personal bests. The fourth had a fall but finished with their head high.</p>',
- 'The Coach', 4, 0, '2024-03-22'),
+ 'Competition', 'competition,mindset', 'competition-week-what-goes-through-my-mind', 'The Coach', 4, 0, '2024-03-22'),
 ('p4',
  'An Ordinary Tuesday That Turned Into Something Special',
  'Not every training day has a dramatic story. But sometimes the ordinary ones leave the biggest impression.',
  '<p>Not every training day has a dramatic story. But halfway through the session I saw something shift — the posture changed, the chin came up. <strong>"That was it. That was what I have been waiting to see."</strong></p>',
- 'The Coach', 3, 0, '2024-03-14');
+ 'Training', 'progress,practice', 'an-ordinary-tuesday-that-turned-into-something-special', 'The Coach', 3, 0, '2024-03-14');
 
 -- TECHNIQUES
 CREATE TABLE IF NOT EXISTS techniques (
@@ -108,6 +114,8 @@ CREATE TABLE IF NOT EXISTS custom_pages (
   name       TEXT NOT NULL,
   slug       TEXT NOT NULL UNIQUE,
   body       TEXT NOT NULL DEFAULT '',
+  seo_title  TEXT NOT NULL DEFAULT '',
+  seo_description TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -151,7 +159,15 @@ CREATE TABLE IF NOT EXISTS products (
   id          TEXT    NOT NULL PRIMARY KEY,
   name        TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
+  category    TEXT    NOT NULL DEFAULT '',
+  badge       TEXT    NOT NULL DEFAULT '',
+  sku         TEXT    NOT NULL DEFAULT '',
+  status      TEXT    NOT NULL DEFAULT 'active' CHECK(status IN ('active','draft','archived')),
+  stock_quantity INTEGER NOT NULL DEFAULT 0,
   base_price  REAL    NOT NULL DEFAULT 0.0,
+  sale_price  REAL    DEFAULT NULL,
+  seo_title   TEXT    NOT NULL DEFAULT '',
+  seo_description TEXT NOT NULL DEFAULT '',
   created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -199,11 +215,17 @@ CREATE TABLE IF NOT EXISTS social_tokens (
 -- ORDERS
 CREATE TABLE IF NOT EXISTS orders (
   id                 TEXT    NOT NULL PRIMARY KEY,
+  user_id            TEXT    DEFAULT NULL,
   name               TEXT    NOT NULL,
   address            TEXT    NOT NULL,
   total_amount       REAL    NOT NULL,
+  shipping_amount    REAL    NOT NULL DEFAULT 0,
+  tax_amount         REAL    NOT NULL DEFAULT 0,
+  discount_amount    REAL    NOT NULL DEFAULT 0,
   payment_method     TEXT    NOT NULL,
-  status             TEXT    NOT NULL DEFAULT 'completed',
+  status             TEXT    NOT NULL DEFAULT 'completed' CHECK(status IN ('pending','completed','payment_failed','cancelled','refunded')),
+  fulfillment_status TEXT    NOT NULL DEFAULT 'pending' CHECK(fulfillment_status IN ('pending','packed','shipped','delivered','cancelled','returned')),
+  tracking_number    TEXT    NOT NULL DEFAULT '',
   order_token        TEXT    NOT NULL UNIQUE,
   razorpay_payment_id TEXT   DEFAULT NULL UNIQUE,
   razorpay_order_id   TEXT   DEFAULT NULL,
@@ -212,6 +234,8 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_phone       TEXT   DEFAULT '',
   created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> '';
 
 -- AUDIT LOGS
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -235,3 +259,71 @@ CREATE TABLE IF NOT EXISTS order_items (
   FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE RESTRICT,
   FOREIGN KEY(product_variant_id) REFERENCES product_variants(id) ON DELETE RESTRICT
 );
+
+CREATE TABLE IF NOT EXISTS post_comments (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id    TEXT NOT NULL,
+  user_id    TEXT DEFAULT NULL,
+  name       TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'approved',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id TEXT NOT NULL,
+  user_id    TEXT DEFAULT NULL,
+  name       TEXT NOT NULL,
+  rating     INTEGER NOT NULL DEFAULT 5,
+  body       TEXT NOT NULL DEFAULT '',
+  status     TEXT NOT NULL DEFAULT 'approved',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS wishlist_items (
+  user_id    TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, product_id)
+);
+
+CREATE TABLE IF NOT EXISTS coupons (
+  code           TEXT NOT NULL PRIMARY KEY,
+  discount_type  TEXT NOT NULL DEFAULT 'percent',
+  discount_value REAL NOT NULL DEFAULT 0,
+  active         INTEGER NOT NULL DEFAULT 1,
+  expires_at     TEXT DEFAULT NULL,
+  created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS return_requests (
+  id         TEXT NOT NULL PRIMARY KEY,
+  order_id   TEXT NOT NULL,
+  user_id    TEXT DEFAULT NULL,
+  reason     TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'requested',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cart_items (
+  user_id    TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  variant_id TEXT NOT NULL DEFAULT '',
+  quantity   INTEGER NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, product_id, variant_id)
+);
+
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  object_id  TEXT NOT NULL DEFAULT '',
+  user_id    TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_product_reviews_product_id ON product_reviews(product_id);
+CREATE INDEX IF NOT EXISTS idx_return_requests_order_id ON return_requests(order_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type, created_at);

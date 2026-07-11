@@ -1,7 +1,10 @@
 <!-- Glacial Precision Floating Pill Navbar -->
 <header class="gp-header" id="siteHeader">
   <div class="gp-nav">
-    <a href="{{ url_for('home') }}" class="gp-logo">On Ice</a>
+    <a href="{{ url_for('home') }}" class="gp-logo" aria-label="On Ice home">
+      <span class="gp-logo-mark" aria-hidden="true">OI</span>
+      <span>On Ice</span>
+    </a>
 
     <nav class="gp-links">
       <a href="{{ url_for('home') }}" class="gp-link {% if request.endpoint == 'home' %}active{% endif %}">Journal</a>

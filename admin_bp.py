@@ -4,9 +4,11 @@ All routes require admin authentication.
 """
 
 import json
+import csv
+import io
 
 # pyrefly: ignore [missing-import]
-from flask import Blueprint, current_app, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, make_response, redirect, render_template, request, url_for
 
 # pyrefly: ignore [missing-import]
 from werkzeug.security import check_password_hash
@@ -67,12 +69,20 @@ def admin_index():
         products = db.execute(
             "SELECT * FROM products ORDER BY created_at DESC"
         ).fetchall()
+        low_stock = db.execute(
+            "SELECT id, name, stock_quantity FROM products WHERE status='active' AND stock_quantity <= 5 ORDER BY stock_quantity ASC LIMIT 10"
+        ).fetchall()
+        revenue = db.execute(
+            "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status='completed'"
+        ).fetchone()[0]
         media_items = db.execute(
             "SELECT * FROM media_library ORDER BY uploaded_at DESC"
         ).fetchall()
         social_tokens = db.execute("SELECT * FROM social_tokens").fetchall()
     except Exception:
         products = []
+        low_stock = []
+        revenue = 0
         media_items = []
         social_tokens = []
 
@@ -151,6 +161,8 @@ def admin_index():
         page_count=len(pages),
         gallery_count=len(gallery),
         product_count=len(products),
+        revenue=revenue,
+        low_stock=low_stock,
         fmt_date=fmt_date,
     )
 
@@ -244,3 +256,18 @@ def admin_orders():
         order_items=order_items,
         audit_logs=audit_logs,
     )
+
+
+@admin_bp.route("/orders/export.csv")
+def export_orders_csv():
+    """Export orders as CSV. Admin only."""
+    if not is_admin():
+        return redirect(url_for("admin.admin_login"))
+    db = get_db()
+    rows = db.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "created_at", "name", "email", "phone", "total", "payment_status", "fulfillment", "tracking"])
+    for r in rows:
+        writer.writerow([r["id"], r["created_at"], r["name"], r["customer_email"], r["customer_phone"], r["total_amount"], r["status"], r["fulfillment_status"], r["tracking_number"]])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=orders.csv"})

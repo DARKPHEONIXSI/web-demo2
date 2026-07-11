@@ -1,13 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ post['title'] + ' — ' if post else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
-{% block description %}{{ (post['excerpt'] or post['body']|striptags|truncate(155)) if post else '' }}{% endblock %}
+{% block title %}{{ (post['seo_title'] or post['title']) + ' — ' if post else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}{{ (post['seo_description'] or post['excerpt'] or post['body']|striptags|truncate(155)) if post else '' }}{% endblock %}
 
 {% block meta_extra %}
 {% if post %}
 <meta property="og:title" content="{{ post['title'] }}">
-<meta property="og:description" content="{{ post['excerpt'] or post['body']|striptags|truncate(155) }}">
+<meta property="og:description" content="{{ post['seo_description'] or post['excerpt'] or post['body']|striptags|truncate(155) }}">
 <meta property="og:type" content="article">
+{% if post['cover_image'] %}<meta property="og:image" content="{{ post['cover_image'] }}">{% endif %}
 {% endif %}
+{% endblock %}
+{% block canonical %}{{ url_for('post_detail', post_id=(post['slug'] or post['id']), _external=True) if post else request.url }}{% endblock %}
+{% block structured_data %}
+{% if post %}<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":{{ post['title']|tojson }},"description":{{ (post['seo_description'] or post['excerpt'])|tojson }},"datePublished":"{{ post['post_date'] }}","author":{"@type":"Person","name":{{ post['author']|tojson }}}}</script>{% endif %}
 {% endblock %}
 
 {% block head_extra %}
@@ -471,7 +476,7 @@
 </div>
 {% else %}
 
-<article class="post-article page-enter" id="postContent">
+<article class="post-article page-enter oi-page" id="postContent">
 
   {# ── Header ──────────────────────────────────────────── #}
   <header>
@@ -533,7 +538,7 @@
     <h3 class="post-related-title">More from the Journal</h3>
     <div class="post-related-grid">
       {% for r in related %}
-      <a href="{{ url_for('post_detail', post_id=r['id']) }}" class="post-related-card">
+      <a href="{{ url_for('post_detail', post_id=(r['slug'] or r['id'])) }}" class="post-related-card">
         <span class="post-related-card-meta">{{ r['post_date']|fmt_date }} · {{ r['read_time'] if r['read_time'] else '3' }} min read</span>
         <span class="post-related-card-title">{{ r['title'] }}</span>
       </a>
@@ -541,6 +546,22 @@
     </div>
   </section>
   {% endif %}
+
+  <section class="post-related-section">
+    <h3 class="post-related-title">Comments</h3>
+    <div style="display:grid; gap:1rem; margin-bottom:1.5rem;">
+      {% for c in comments %}
+      <div style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:12px; padding:1rem;">
+        <strong>{{ c.name }}</strong><br><span style="color:var(--on-surface-variant);">{{ c.body }}</span>
+      </div>
+      {% else %}<p style="color:var(--on-surface-variant);">No comments yet.</p>{% endfor %}
+    </div>
+    <div style="display:grid; gap:0.75rem;">
+      <input class="form-input" id="commentName" placeholder="Your name">
+      <textarea class="form-textarea" id="commentBody" placeholder="Write a comment"></textarea>
+      <button class="gp-btn-primary" type="button" onclick="saveComment()">Post Comment</button>
+    </div>
+  </section>
 
 </article>
 {% endif %}
@@ -579,6 +600,14 @@ document.getElementById('copyBtn') && document.getElementById('copyBtn').addEven
 document.getElementById('shareXBtn') && document.getElementById('shareXBtn').addEventListener('click', function() {
   window.open('https://x.com/intent/tweet?text={{ post["title"]|urlencode }}%20' + encodeURIComponent(window.location.href), '_blank');
 });
+function saveComment() {
+  var fd = new URLSearchParams();
+  fd.set('post_id', '{{ post["id"] }}');
+  fd.set('name', document.getElementById('commentName').value);
+  fd.set('body', document.getElementById('commentBody').value);
+  fetch('/api/comment', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+    .then(r => r.json()).then(d => { showToast(d.msg, d.ok ? '' : 'error'); if(d.ok) setTimeout(()=>location.reload(), 700); });
+}
 </script>
 {% endif %}
 {% endblock %}

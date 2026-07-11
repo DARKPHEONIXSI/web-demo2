@@ -1,11 +1,19 @@
 <!-- Glacial Precision Footer -->
 <footer class="gp-footer">
   <div class="gp-footer-inner">
-    <div class="gp-footer-logo">On Ice</div>
+    <div class="gp-footer-brand">
+      <div class="gp-footer-logo">On Ice</div>
+      <p>Technique, artistry, and rink-tested gear for skaters who train with intent.</p>
+    </div>
     <div class="gp-footer-links">
-      <a href="#" class="gp-footer-link">Privacy Policy</a>
-      <a href="#" class="gp-footer-link">Terms of Service</a>
-      <a href="#" class="gp-footer-link">Shipping & Returns</a>
+      <a href="{{ url_for('home') }}" class="gp-footer-link">Journal</a>
+      <a href="{{ url_for('shop') }}" class="gp-footer-link">Shop</a>
+      <a href="{{ url_for('techniques') }}" class="gp-footer-link">Techniques</a>
+      <a href="{{ url_for('gallery') }}" class="gp-footer-link">Gallery</a>
+      <a href="{{ url_for('privacy') }}" class="gp-footer-link">Privacy Policy</a>
+      <a href="{{ url_for('terms') }}" class="gp-footer-link">Terms of Service</a>
+      <a href="{{ url_for('shipping_returns') }}" class="gp-footer-link">Shipping & Returns</a>
+      <a href="{{ url_for('refund_policy') }}" class="gp-footer-link">Refund Policy</a>
       <a href="{{ url_for('contact') }}" class="gp-footer-link">Contact Us</a>
     </div>
     <div class="gp-footer-copy">

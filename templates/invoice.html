@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Invoice — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block content %}
+<section class="section page-enter oi-page">
+  <div class="container oi-mid">
+    {% if not order %}<h1 class="section-title">Invoice not found</h1>{% else %}
+    <div class="oi-page-hero oi-print-card">
+      <div class="section-label">Invoice</div>
+      <h1 class="section-title">Invoice #{{ order.id[:8] }}</h1>
+      <p>{{ order.name }}<br>{{ order.address }}</p>
+    </div>
+    <div class="oi-card oi-print-card" style="overflow:hidden; margin:2rem 0;">
+      {% for item in items %}
+      <div style="display:flex; justify-content:space-between; padding:1rem; border-bottom:1px solid var(--isu-pale);">
+        <span>{{ item.product_name or 'Product' }} × {{ item.quantity }}</span><span>₹{{ '%.2f' % item.price_at_time }}</span>
+      </div>
+      {% endfor %}
+      <div style="display:grid; gap:0.35rem; padding:1rem;">
+        <div>Shipping: ₹{{ '%.2f' % order.shipping_amount }}</div>
+        <div>Tax: ₹{{ '%.2f' % order.tax_amount }}</div>
+        <div>Discount: ₹{{ '%.2f' % order.discount_amount }}</div>
+        <strong>Total: ₹{{ '%.2f' % order.total_amount }}</strong>
+      </div>
+    </div>
+    <button class="gp-btn-primary oi-no-print" onclick="window.print()">Print / Save PDF</button>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

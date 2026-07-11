@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Orders - {{ settings.get('blog_name', 'On Ice') }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}?v=2.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}?v=2.2">
 </head>
-<body style="padding:2rem; background:var(--surface); color:var(--on-surface);">
+<body class="oi-orders-page">
   <main style="max-width:1100px; margin:0 auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:2rem;">
       <div>
         <div class="section-label">ADMIN</div>
         <h1 class="section-title" style="margin:0;">Orders</h1>
       </div>
-      <a class="gp-btn-secondary" href="{{ url_for('admin.admin_index') }}">Back to Dashboard</a>
+      <div style="display:flex; gap:0.75rem;"><a class="gp-btn-secondary" href="{{ url_for('admin.export_orders_csv') }}">Export CSV</a><a class="gp-btn-secondary" href="{{ url_for('admin.admin_index') }}">Back to Dashboard</a></div>
     </div>
 
     {% if not orders %}
@@ -21,7 +21,7 @@
     {% endif %}
 
     {% for order in orders %}
-      <section style="background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1rem; margin-bottom:1rem;">
+      <section class="oi-order-admin-card">
         <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
           <div>
             <strong>#{{ order.id[:8] }}</strong>
@@ -38,6 +38,27 @@
             </div>
           {% endfor %}
         </div>
+        <div style="margin-top:1rem; display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap; border-top:1px solid var(--isu-pale); padding-top:1rem;">
+          <label style="font-size:12px; color:var(--on-surface-variant);">Payment<br>
+            <select id="status-{{ order.id }}" class="form-input" style="min-width:150px;">
+              {% for s in ['pending','completed','payment_failed','cancelled','refunded'] %}
+              <option value="{{ s }}" {{ 'selected' if order.status == s else '' }}>{{ s|replace('_',' ')|title }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label style="font-size:12px; color:var(--on-surface-variant);">Fulfillment<br>
+            <select id="fulfillment-{{ order.id }}" class="form-input" style="min-width:150px;">
+              {% for s in ['pending','packed','shipped','delivered','cancelled','returned'] %}
+              <option value="{{ s }}" {{ 'selected' if order.fulfillment_status == s else '' }}>{{ s|title }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label style="font-size:12px; color:var(--on-surface-variant);">Tracking<br>
+            <input id="tracking-{{ order.id }}" class="form-input" value="{{ order.tracking_number or '' }}" placeholder="Courier tracking #">
+          </label>
+          <button class="gp-btn-primary" onclick="updateOrder('{{ order.id }}')">Save</button>
+          <button class="gp-btn-secondary" style="border-color:var(--error); color:var(--error);" onclick="refundOrder('{{ order.id }}')">Refund</button>
+        </div>
       </section>
     {% endfor %}
 
@@ -51,5 +72,22 @@
       {% endfor %}
     </section>
   </main>
+  <script>
+    function updateOrder(id) {
+      var fd = new URLSearchParams();
+      fd.set('id', id);
+      fd.set('status', document.getElementById('status-' + id).value);
+      fd.set('fulfillment_status', document.getElementById('fulfillment-' + id).value);
+      fd.set('tracking_number', document.getElementById('tracking-' + id).value);
+      fetch('/api/update_order_status', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString()})
+        .then(r => r.json()).then(d => { alert(d.msg || (d.ok ? 'Saved' : 'Error')); });
+    }
+    function refundOrder(id) {
+      if(!confirm('Mark this order refunded?')) return;
+      var fd = new URLSearchParams(); fd.set('id', id);
+      fetch('/api/refund_order', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+        .then(r => r.json()).then(d => { alert(d.msg || 'Updated'); if(d.ok) location.reload(); });
+    }
+  </script>
 </body>
 </html>

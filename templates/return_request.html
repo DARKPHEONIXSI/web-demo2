@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Return Request — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block content %}
+<section class="section page-enter oi-page">
+  <div class="container oi-narrow">
+    {% if not order %}<div class="oi-page-hero center"><h1 class="section-title">Order not found</h1></div>{% else %}
+    <div class="oi-page-hero">
+      <div class="section-label">Returns</div>
+      <h1 class="section-title">Request a Return</h1>
+      <p>Order #{{ order.id[:8] }}</p>
+    </div>
+    <div class="oi-form-card">
+    <textarea class="form-textarea" id="returnReason" placeholder="Tell us why you want to return this order" rows="5"></textarea>
+    <button class="gp-btn-primary" style="margin-top:1rem;" onclick="submitReturn()">Submit Return Request</button>
+    </div>
+    <script>
+      function submitReturn() {
+        var fd = new URLSearchParams(); fd.set('order_token', '{{ order.order_token }}'); fd.set('reason', document.getElementById('returnReason').value);
+        fetch('/api/returns/request', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+          .then(r=>r.json()).then(d=>showToast(d.msg, d.ok ? '' : 'error'));
+      }
+    </script>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -29,7 +29,7 @@ except ImportError:
     ImageOps = None
 
 from auth import admin_required, jwt_required
-from models import gen_id, get_db, save_setting
+from models import gen_id, get_db, save_setting, unique_slug
 from models import log_audit
 from purify_html import purify_html
 
@@ -109,48 +109,16 @@ def save_sanitized_image(file, filepath: str, ext: str):
     return None
 
 
-def using_supabase_storage() -> bool:
-    return current_app.config.get("STORAGE_BACKEND") == "supabase"
-
-
 def storage_public_url(object_name: str) -> str:
-    if not using_supabase_storage():
-        return current_app.config["UPLOAD_URL"] + object_name
-    base = current_app.config["SUPABASE_URL"].rstrip("/")
-    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
-    return f"{base}/storage/v1/object/public/{bucket}/{object_name}"
+    return current_app.config["UPLOAD_URL"] + object_name
 
 
 def save_storage_object(object_name: str, data: bytes, content_type: str) -> str:
-    """Save bytes to Supabase Storage or local uploads and return public URL."""
-    if not using_supabase_storage():
-        upload_dir = current_app.config["UPLOAD_FOLDER"]
-        os.makedirs(upload_dir, exist_ok=True)
-        with open(os.path.join(upload_dir, object_name), "wb") as f:
-            f.write(data)
-        return current_app.config["UPLOAD_URL"] + object_name
-
-    base = current_app.config["SUPABASE_URL"].rstrip("/")
-    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
-    key = current_app.config["SUPABASE_SERVICE_ROLE_KEY"]
-    url = f"{base}/storage/v1/object/{bucket}/{object_name}"
-    req = urllib.request.Request(
-        url,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "apikey": key,
-            "Content-Type": content_type,
-            "x-upsert": "true",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=20):
-            pass
-    except Exception as e:
-        current_app.logger.exception("Supabase Storage upload failed")
-        raise RuntimeError("Could not upload file to Supabase Storage.") from e
+    """Save bytes to local uploads and return public URL."""
+    upload_dir = current_app.config["UPLOAD_FOLDER"]
+    os.makedirs(upload_dir, exist_ok=True)
+    with open(os.path.join(upload_dir, object_name), "wb") as f:
+        f.write(data)
     return storage_public_url(object_name)
 
 
@@ -159,33 +127,12 @@ def delete_storage_object(url_or_path: str):
     object_name = os.path.basename(url_or_path or "")
     if not object_name:
         return
-    if not using_supabase_storage():
-        filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], object_name)
-        if os.path.exists(filepath):
-            try:
-                os.unlink(filepath)
-            except OSError:
-                pass
-        return
-
-    base = current_app.config["SUPABASE_URL"].rstrip("/")
-    bucket = current_app.config["SUPABASE_STORAGE_BUCKET"]
-    key = current_app.config["SUPABASE_SERVICE_ROLE_KEY"]
-    req = urllib.request.Request(
-        f"{base}/storage/v1/object/{bucket}",
-        data=json.dumps({"prefixes": [object_name]}).encode("utf-8"),
-        method="DELETE",
-        headers={
-            "Authorization": f"Bearer {key}",
-            "apikey": key,
-            "Content-Type": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10):
+    filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], object_name)
+    if os.path.exists(filepath):
+        try:
+            os.unlink(filepath)
+        except OSError:
             pass
-    except Exception:
-        current_app.logger.warning("Supabase Storage delete failed for %s", object_name)
 
 
 def verify_turnstile() -> str | None:
@@ -237,13 +184,17 @@ def calculate_cart_total(cart_json: str) -> tuple[float, list[dict], str | None]
             return 0.0, [], "Invalid cart item."
 
         product = db.execute(
-            "SELECT id, name, base_price FROM products WHERE id=? LIMIT 1",
+            "SELECT id, name, base_price, sale_price, stock_quantity, status FROM products WHERE id=? LIMIT 1",
             (product_id,),
         ).fetchone()
         if not product:
             return 0.0, [], "Product no longer exists."
+        if product["status"] != "active":
+            return 0.0, [], "Product is not available."
+        if not variant_id and int(product["stock_quantity"] or 0) < quantity:
+            return 0.0, [], f"Not enough stock for {product['name']}."
 
-        unit_price = float(product["base_price"] or 0)
+        unit_price = float(product["sale_price"] if product["sale_price"] is not None else product["base_price"] or 0)
         item_name = product["name"]
         if variant_id:
             variant = db.execute(
@@ -289,6 +240,34 @@ def cart_hash(items: list[dict]) -> str:
     ]
     payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def coupon_discount(subtotal: float, code: str = "") -> tuple[float, str | None]:
+    """Return discount for an active coupon code."""
+    code = (code or "").strip().upper()
+    if not code:
+        return 0.0, None
+    coupon = get_db().execute(
+        "SELECT * FROM coupons WHERE code=? AND active=1 LIMIT 1", (code,)
+    ).fetchone()
+    if not coupon:
+        return 0.0, "Coupon is invalid or inactive."
+    value = float(coupon["discount_value"] or 0)
+    if coupon["discount_type"] == "fixed":
+        return min(subtotal, value), None
+    return round(subtotal * min(value, 100) / 100, 2), None
+
+
+def order_totals(subtotal: float, coupon_code: str = "") -> dict:
+    """Calculate transparent order totals from the trusted cart subtotal."""
+    discount, coupon_error = coupon_discount(subtotal, coupon_code)
+    if coupon_error:
+        discount = 0.0
+    shipping = 0.0 if subtotal >= 5000 else 199.0
+    taxable = max(0.0, subtotal - discount)
+    tax = round(taxable * 0.18, 2)
+    total = round(taxable + shipping + tax, 2)
+    return {"subtotal": round(subtotal, 2), "discount": discount, "shipping": shipping, "tax": tax, "total": total, "coupon_error": coupon_error}
 
 # Allowed MIME types for uploads
 ALLOWED_MIME_TYPES = {
@@ -350,7 +329,7 @@ def get_posts_api():
     """Return published posts as JSON."""
     db = get_db()
     rows = db.execute(
-        """SELECT id, title, excerpt, body, post_date, read_time, pinned
+        """SELECT id, title, excerpt, body, cover_image, category, tags, slug, seo_title, seo_description, post_date, read_time, pinned
            FROM posts WHERE status='published'
            ORDER BY pinned DESC, post_date DESC"""
     ).fetchall()
@@ -364,7 +343,79 @@ def cart_quote():
     if cart_error:
         log_audit("cart.quote_failed", ip_address=request.remote_addr, reason=cart_error)
         return err(cart_error)
-    return jsonify({"ok": True, "total_amount": total_amount, "items": items})
+    totals = order_totals(total_amount, request.form.get("coupon") or "")
+    if totals["coupon_error"]:
+        return err(totals["coupon_error"])
+    return jsonify({"ok": True, "subtotal_amount": totals["subtotal"], "discount_amount": totals["discount"], "shipping_amount": totals["shipping"], "tax_amount": totals["tax"], "total_amount": totals["total"], "items": items})
+
+
+@api_bp.route("/api/comment", methods=["POST"])
+def save_comment():
+    post_id = (request.form.get("post_id") or "").strip()
+    name = (request.form.get("name") or "").strip()[:100]
+    body = (request.form.get("body") or "").strip()[:1000]
+    if not post_id or not name or not body:
+        return err("Name and comment are required.")
+    db = get_db()
+    db.execute("INSERT INTO post_comments (post_id, name, body) VALUES (?, ?, ?)", (post_id, name, body))
+    db.commit()
+    return ok("Comment added.")
+
+
+@api_bp.route("/api/review", methods=["POST"])
+@jwt_required
+def save_review():
+    product_id = (request.form.get("product_id") or "").strip()
+    body = (request.form.get("body") or "").strip()[:1000]
+    try:
+        rating = max(1, min(5, int(request.form.get("rating") or 5)))
+    except ValueError:
+        rating = 5
+    if not product_id:
+        return err("Product is required.")
+    db = get_db()
+    user = db.execute("SELECT username FROM users WHERE id=?", (request.current_user["id"],)).fetchone()
+    name = user["username"] if user else "Member"
+    db.execute("INSERT INTO product_reviews (product_id, user_id, name, rating, body) VALUES (?, ?, ?, ?, ?)", (product_id, request.current_user["id"], name, rating, body))
+    db.commit()
+    return ok("Review added.")
+
+
+@api_bp.route("/api/wishlist/toggle", methods=["POST"])
+@jwt_required
+def toggle_wishlist():
+    product_id = (request.form.get("product_id") or "").strip()
+    db = get_db()
+    existing = db.execute("SELECT 1 FROM wishlist_items WHERE user_id=? AND product_id=?", (request.current_user["id"], product_id)).fetchone()
+    if existing:
+        db.execute("DELETE FROM wishlist_items WHERE user_id=? AND product_id=?", (request.current_user["id"], product_id))
+        wished = False
+    else:
+        db.execute("INSERT OR IGNORE INTO wishlist_items (user_id, product_id) VALUES (?, ?)", (request.current_user["id"], product_id))
+        wished = True
+    db.commit()
+    return ok("Wishlist updated.", wished=wished)
+
+
+@api_bp.route("/api/cart/save", methods=["POST"])
+@jwt_required
+def save_server_cart():
+    total, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    if cart_error:
+        return err(cart_error)
+    db = get_db()
+    db.execute("DELETE FROM cart_items WHERE user_id=?", (request.current_user["id"],))
+    for item in items:
+        db.execute("INSERT INTO cart_items (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)", (request.current_user["id"], item["product_id"], item["variant_id"] or "", item["quantity"]))
+    db.commit()
+    return ok("Cart saved.")
+
+
+@api_bp.route("/api/cart/load")
+@jwt_required
+def load_server_cart():
+    rows = get_db().execute("SELECT * FROM cart_items WHERE user_id=?", (request.current_user["id"],)).fetchall()
+    return jsonify({"ok": True, "cart": [dict(r) for r in rows]})
 
 
 # ── Image upload ──────────────────────────────────────────────
@@ -418,6 +469,12 @@ def save_post():
     title = (request.form.get("title") or "").strip()
     excerpt = (request.form.get("excerpt") or "").strip()
     body = purify_html((request.form.get("body") or "").strip())
+    cover_image = (request.form.get("cover_image") or "").strip()
+    category = (request.form.get("category") or "").strip()
+    tags = (request.form.get("tags") or "").strip()
+    slug = (request.form.get("slug") or "").strip()
+    seo_title = (request.form.get("seo_title") or "").strip()
+    seo_description = (request.form.get("seo_description") or "").strip()
     author = (request.form.get("author") or "The Coach").strip()
     read_time = max(1, int(request.form.get("read_time") or 4))
     pinned = 1 if request.form.get("pinned") in ("1", "true", "on") else 0
@@ -428,6 +485,8 @@ def save_post():
         return err("Title is required and must be under 200 characters.")
     if not body:
         return err("Body is required.")
+    if len(seo_title) > 200 or len(seo_description) > 300:
+        return err("SEO title/description are too long.")
 
     author_id = (
         request.current_user.get("id")
@@ -436,15 +495,22 @@ def save_post():
     )
 
     db = get_db()
+    slug = unique_slug("posts", slug or title, post_id)
     if post_id:
         db.execute(
-            """UPDATE posts SET title=?, excerpt=?, body=?, author=?, author_id=?,
-               read_time=?, pinned=?, status=?, post_date=?, updated_at=datetime('now')
+            """UPDATE posts SET title=?, excerpt=?, body=?, cover_image=?, category=?, tags=?, slug=?,
+               seo_title=?, seo_description=?, author=?, author_id=?, read_time=?, pinned=?, status=?, post_date=?, updated_at=datetime('now')
                WHERE id=?""",
             (
                 title,
                 excerpt,
                 body,
+                cover_image,
+                category,
+                tags,
+                slug,
+                seo_title,
+                seo_description,
                 author,
                 author_id,
                 read_time,
@@ -457,13 +523,19 @@ def save_post():
     else:
         post_id = gen_id()
         db.execute(
-            """INSERT INTO posts (id, title, excerpt, body, author, author_id, read_time, pinned, status, post_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO posts (id, title, excerpt, body, cover_image, category, tags, slug, seo_title, seo_description, author, author_id, read_time, pinned, status, post_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 post_id,
                 title,
                 excerpt,
                 body,
+                cover_image,
+                category,
+                tags,
+                slug,
+                seo_title,
+                seo_description,
                 author,
                 author_id,
                 read_time,
@@ -473,7 +545,7 @@ def save_post():
             ),
         )
     db.commit()
-    return ok("Post saved.", id=post_id)
+    return ok("Post saved.", id=post_id, slug=slug)
 
 
 @api_bp.route("/api/delete_post", methods=["POST"])
@@ -562,6 +634,8 @@ def save_page():
     page_id = (request.form.get("id") or "").strip()
     name = (request.form.get("name") or "").strip()
     body = purify_html((request.form.get("body") or "").strip())
+    seo_title = (request.form.get("seo_title") or "").strip()
+    seo_description = (request.form.get("seo_description") or "").strip()
     slug = re.sub(r"[^a-z0-9-]", "", name.lower().replace(" ", "-"))
 
     if not name:
@@ -570,14 +644,14 @@ def save_page():
     db = get_db()
     if page_id:
         db.execute(
-            "UPDATE custom_pages SET name=?, slug=?, body=?, updated_at=datetime('now') WHERE id=?",
-            (name, slug, body, page_id),
+            "UPDATE custom_pages SET name=?, slug=?, body=?, seo_title=?, seo_description=?, updated_at=datetime('now') WHERE id=?",
+            (name, slug, body, seo_title, seo_description, page_id),
         )
     else:
         page_id = gen_id()
         db.execute(
-            "INSERT INTO custom_pages (id, name, slug, body) VALUES (?, ?, ?, ?)",
-            (page_id, name, slug, body),
+            "INSERT INTO custom_pages (id, name, slug, body, seo_title, seo_description) VALUES (?, ?, ?, ?, ?, ?)",
+            (page_id, name, slug, body, seo_title, seo_description),
         )
     db.commit()
     return ok("Page saved.", id=page_id)
@@ -815,6 +889,12 @@ def save_product():
         return err("Product name is required.")
 
     desc = purify_html((request.form.get("description") or "").strip())
+    category = (request.form.get("category") or "").strip()
+    badge = (request.form.get("badge") or "").strip()
+    sku = (request.form.get("sku") or "").strip()
+    status = request.form.get("status") if request.form.get("status") in {"active", "draft", "archived"} else "active"
+    seo_title = (request.form.get("seo_title") or "").strip()
+    seo_description = (request.form.get("seo_description") or "").strip()
 
     try:
         price = float(request.form.get("base_price") or 0)
@@ -822,18 +902,43 @@ def save_product():
             return err("Price cannot be negative.")
     except (ValueError, TypeError):
         return err("Invalid price value.")
+    try:
+        stock_quantity = int(request.form.get("stock_quantity") or 0)
+        if stock_quantity < 0:
+            return err("Stock cannot be negative.")
+    except (ValueError, TypeError):
+        return err("Invalid stock value.")
+    sale_price_raw = (request.form.get("sale_price") or "").strip()
+    sale_price = None
+    if sale_price_raw:
+        try:
+            sale_price = float(sale_price_raw)
+            if sale_price < 0:
+                return err("Sale price cannot be negative.")
+        except (ValueError, TypeError):
+            return err("Invalid sale price value.")
 
     db = get_db()
+    if sku:
+        existing = db.execute(
+            "SELECT id FROM products WHERE sku=? AND id != ? LIMIT 1", (sku, pid or "")
+        ).fetchone()
+        if existing:
+            return err("SKU already exists.")
     if pid:
         db.execute(
-            "UPDATE products SET name=?, description=?, base_price=? WHERE id=?",
-            (name, desc, price, pid),
+            """UPDATE products SET name=?, description=?, category=?, badge=?, sku=?, status=?,
+               stock_quantity=?, base_price=?, sale_price=?, seo_title=?, seo_description=?, updated_at=datetime('now')
+               WHERE id=?""",
+            (name, desc, category, badge, sku, status, stock_quantity, price, sale_price, seo_title, seo_description, pid),
         )
     else:
         pid = gen_id()
         db.execute(
-            "INSERT INTO products (id, name, description, base_price) VALUES (?, ?, ?, ?)",
-            (pid, name, desc, price),
+            """INSERT INTO products (id, name, description, category, badge, sku, status,
+               stock_quantity, base_price, sale_price, seo_title, seo_description)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (pid, name, desc, category, badge, sku, status, stock_quantity, price, sale_price, seo_title, seo_description),
         )
     db.commit()
     return ok("Product saved.", id=pid)
@@ -861,10 +966,17 @@ def save_variant():
         stock = int(request.form.get("stock_quantity") or 0)
     except ValueError:
         stock = 0
+    price_raw = (request.form.get("price_override") or "").strip()
+    price_override = None
+    if price_raw:
+        try:
+            price_override = float(price_raw)
+        except ValueError:
+            return err("Invalid variant price.")
     db = get_db()
     db.execute(
-        "INSERT INTO product_variants (id, product_id, color, size, stock_quantity) VALUES (?, ?, ?, ?, ?)",
-        (gen_id(), pid, color, size, stock),
+        "INSERT INTO product_variants (id, product_id, color, size, stock_quantity, price_override) VALUES (?, ?, ?, ?, ?, ?)",
+        (gen_id(), pid, color, size, stock, price_override),
     )
     db.commit()
     return ok("Saved.")
@@ -905,6 +1017,28 @@ def delete_prod_image():
     return ok("Deleted.")
 
 
+@api_bp.route("/api/update_order_status", methods=["POST"])
+@admin_required
+def update_order_status():
+    """Update order payment, fulfillment, and tracking state. Admin only."""
+    order_id = (request.form.get("id") or "").strip()
+    status = request.form.get("status") or "completed"
+    fulfillment_status = request.form.get("fulfillment_status") or "pending"
+    tracking_number = (request.form.get("tracking_number") or "").strip()
+    if status not in {"pending", "completed", "payment_failed", "cancelled", "refunded"}:
+        return err("Invalid payment status.")
+    if fulfillment_status not in {"pending", "packed", "shipped", "delivered", "cancelled", "returned"}:
+        return err("Invalid fulfillment status.")
+    db = get_db()
+    db.execute(
+        "UPDATE orders SET status=?, fulfillment_status=?, tracking_number=? WHERE id=?",
+        (status, fulfillment_status, tracking_number, order_id),
+    )
+    db.commit()
+    log_audit("order.status_updated", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id, status=status, fulfillment_status=fulfillment_status)
+    return ok("Order updated.")
+
+
 # ── Razorpay Endpoints ────────────────────────────────────────
 
 
@@ -912,15 +1046,18 @@ def delete_prod_image():
 @jwt_required
 def create_razorpay_order():
     """Create a Razorpay order. Returns order_id and amount in paise."""
-    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    subtotal_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
     if cart_error:
         current_app.logger.warning("cart validation failed during Razorpay create: %s", cart_error)
         return err(cart_error)
-    if total_amount <= 0:
+    totals = order_totals(subtotal_amount, request.form.get("coupon") or "")
+    if totals["coupon_error"]:
+        return err(totals["coupon_error"])
+    if totals["total"] <= 0:
         return err("Amount must be greater than zero.")
 
     # Amount in paise
-    amount_paise = int(total_amount * 100)
+    amount_paise = int(totals["total"] * 100)
 
     client = razorpay.Client(
         auth=(
@@ -947,7 +1084,7 @@ def create_razorpay_order():
             request.current_user.get("id", "guest"),
             amount_paise,
         )
-        return jsonify({"ok": True, "order_id": order["id"], "amount": amount_paise, "total_amount": total_amount})
+        return jsonify({"ok": True, "order_id": order["id"], "amount": amount_paise, "subtotal_amount": totals["subtotal"], "shipping_amount": totals["shipping"], "tax_amount": totals["tax"], "total_amount": totals["total"]})
     except Exception as e:
         current_app.logger.warning("Razorpay order creation failed: %s", e)
         return err(f"Razorpay error: {str(e)}")
@@ -962,10 +1099,13 @@ def verify_razorpay():
     email = (request.form.get("email") or "").strip()
     phone = (request.form.get("phone") or "").strip()
 
-    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    subtotal_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
     if cart_error:
         current_app.logger.warning("cart validation failed during Razorpay verify: %s", cart_error)
         return err(cart_error)
+    totals = order_totals(subtotal_amount, request.form.get("coupon") or "")
+    if totals["coupon_error"]:
+        return err(totals["coupon_error"])
 
     razorpay_payment_id = request.form.get("razorpay_payment_id")
     razorpay_order_id = request.form.get("razorpay_order_id")
@@ -994,7 +1134,7 @@ def verify_razorpay():
         current_app.logger.warning("invalid Razorpay signature for payment %s", razorpay_payment_id)
         return err("Invalid payment signature")
 
-    amount_paise = int(total_amount * 100)
+    amount_paise = int(totals["total"] * 100)
     try:
         payment = client.payment.fetch(razorpay_payment_id)
         provider_order = client.order.fetch(razorpay_order_id)
@@ -1036,15 +1176,19 @@ def verify_razorpay():
 
     try:
         db.execute(
-            """INSERT INTO orders (id, name, address, total_amount, payment_method,
+            """INSERT INTO orders (id, user_id, name, address, total_amount, shipping_amount, tax_amount, discount_amount, payment_method,
                                   razorpay_payment_id, razorpay_order_id, order_token,
-                                  customer_email, customer_phone, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                  customer_email, customer_phone, status, fulfillment_status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 order_id,
+                request.current_user.get("id"),
                 name,
                 address,
-                total_amount,
+                totals["total"],
+                totals["shipping"],
+                totals["tax"],
+                totals["discount"],
                 "razorpay",
                 razorpay_payment_id,
                 razorpay_order_id,
@@ -1052,6 +1196,7 @@ def verify_razorpay():
                 email,
                 phone,
                 "completed",
+                "pending",
             ),
         )
 
@@ -1076,6 +1221,13 @@ def verify_razorpay():
                 )
                 if cur.rowcount != 1:
                     raise ValueError(f"Not enough stock for {item['name']}.")
+            else:
+                cur = db.execute(
+                    "UPDATE products SET stock_quantity = stock_quantity - ? WHERE id=? AND stock_quantity >= ?",
+                    (item["quantity"], item["product_id"], item["quantity"]),
+                )
+                if cur.rowcount != 1:
+                    raise ValueError(f"Not enough stock for {item['name']}.")
         db.commit()
     except Exception as e:
         db.rollback()
@@ -1087,13 +1239,59 @@ def verify_razorpay():
 
     # Trigger notifications (async in production)
     try:
-        send_order_notifications(order_id, name, email, phone, total_amount)
+        send_order_notifications(order_id, name, email, phone, totals["total"])
     except Exception:
         pass  # Log error in production
 
     return ok(
         "Order completed successfully.", order_id=order_id, order_token=order_token
     )
+
+
+@api_bp.route("/api/order/cancel", methods=["POST"])
+@jwt_required
+def cancel_order():
+    token = (request.form.get("order_token") or "").strip()
+    db = get_db()
+    order = db.execute("SELECT * FROM orders WHERE order_token=? AND user_id=?", (token, request.current_user["id"])).fetchone()
+    if not order:
+        return err("Order not found.", 404)
+    if order["fulfillment_status"] not in {"pending", "packed"}:
+        return err("This order can no longer be cancelled.")
+    db.execute("UPDATE orders SET status='cancelled', fulfillment_status='cancelled' WHERE id=?", (order["id"],))
+    db.commit()
+    return ok("Cancellation requested.")
+
+
+@api_bp.route("/api/returns/request", methods=["POST"])
+@jwt_required
+def request_return():
+    token = (request.form.get("order_token") or "").strip()
+    reason = (request.form.get("reason") or "").strip()[:1000]
+    if not reason:
+        return err("Return reason is required.")
+    db = get_db()
+    order = db.execute("SELECT * FROM orders WHERE order_token=? AND user_id=?", (token, request.current_user["id"])).fetchone()
+    if not order:
+        return err("Order not found.", 404)
+    db.execute("INSERT INTO return_requests (id, order_id, user_id, reason) VALUES (?, ?, ?, ?)", (gen_id(), order["id"], request.current_user["id"], reason))
+    db.commit()
+    return ok("Return request submitted.")
+
+
+@api_bp.route("/api/refund_order", methods=["POST"])
+@admin_required
+def refund_order():
+    order_id = (request.form.get("id") or "").strip()
+    db = get_db()
+    order = db.execute("SELECT * FROM orders WHERE id=?", (order_id,)).fetchone()
+    if not order:
+        return err("Order not found.", 404)
+    # Razorpay refund API can be connected here when live credentials are ready.
+    db.execute("UPDATE orders SET status='refunded', fulfillment_status='returned' WHERE id=?", (order_id,))
+    db.commit()
+    log_audit("order.refunded", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id)
+    return ok("Order marked refunded.")
 
 
 @api_bp.route("/api/razorpay/webhook", methods=["POST"])
@@ -1130,7 +1328,7 @@ def razorpay_webhook():
 @jwt_required
 def create_paytm_order():
     """Create a Paytm order. Returns order_id and txnToken."""
-    return err("Paytm checkout is not enabled yet.", 501)
+    return err("Paytm checkout requires merchant credentials and frontend activation.", 501)
 
     try:
         total_amount = float(request.form.get("total_amount") or 0)
@@ -1163,7 +1361,7 @@ def create_paytm_order():
 @jwt_required
 def verify_paytm():
     """Verify Paytm payment with checksum validation and create order."""
-    return err("Paytm checkout is not enabled yet.", 501)
+    return err("Paytm checkout requires merchant credentials and frontend activation.", 501)
 
     name = (request.form.get("name") or "").strip()
     address = (request.form.get("address") or "").strip()

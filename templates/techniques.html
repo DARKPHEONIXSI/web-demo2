@@ -2,10 +2,10 @@
 {% block title %}Techniques — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
 
 {% block content %}
-<section class="section page-enter" style="padding-top:7rem;">
+<section class="section page-enter oi-page">
   <div class="container" style="max-width:900px;">
     
-    <div style="margin-bottom: 3rem; text-align: center;">
+    <div class="oi-page-hero center" style="margin-bottom: 3rem;">
       <img src="/static/images/techniques_skating.png" alt="Ice skate close up" 
            style="width: 100%; height: 300px; object-fit: cover; border-radius: var(--radius-lg); margin-bottom: 2rem; border: 1px solid var(--isu-pale);"
            onerror="this.style.background='var(--surface-container-low)'; this.src='';">
@@ -15,8 +15,8 @@
     </div>
 
     {% if not techs %}
-    <div style="text-align:center; padding: 4rem; background: var(--surface-white); border: 1px solid var(--isu-pale); border-radius: var(--radius-lg);">
-      <h3 style="font-family:var(--font-heading); font-size: 24px; margin-bottom: 0.5rem;">❄ No Techniques Yet</h3>
+    <div class="oi-card" style="text-align:center; padding: 4rem;">
+      <h3 style="font-family:var(--font-heading); font-size: 24px; margin-bottom: 0.5rem;">No Techniques Yet</h3>
       <p style="color: var(--on-surface-variant);">The coach will add technique guides soon.</p>
     </div>
     {% else %}

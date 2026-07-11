@@ -10,15 +10,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/glacial.css') }}?v=2.2">
 </head>
-<body style="background:var(--surface-container-lowest); display:flex; align-items:center; justify-content:center; min-height:100vh;">
+<body class="oi-auth-shell">
 
-  <div style="width: 100%; max-width: 400px; padding: 2rem;">
-    <div style="background:var(--surface-white); border: 1px solid var(--isu-pale); border-radius: var(--radius-xl); padding: 2.5rem 2rem; text-align: center; box-shadow: var(--shadow-sm);">
+  <div class="oi-auth-card">
+    <div style="text-align: center;">
       <div style="margin-bottom: 2rem;">
         <span class="material-symbols-outlined" style="font-size: 40px; color: var(--primary); margin-bottom: 0.5rem;">admin_panel_settings</span>
-        <div class="section-label">COACH PANEL</div>
+        <div class="section-label">Coach Panel</div>
         <div class="display-lg" style="font-size: 28px;">Admin Access</div>
       </div>
 
@@ -41,7 +41,7 @@
           <input class="form-input" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
         </div>
         
-        <button type="submit" class="gp-btn-primary" style="width:100%; justify-content:center; margin-top:1rem; padding:0.875rem;">Enter the Rink →</button>
+        <button type="submit" class="gp-btn-primary" style="width:100%; justify-content:center; margin-top:1rem; padding:0.875rem;">Enter Dashboard</button>
       </form>
       
       <div style="margin-top:2rem;">

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Payment Failed — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block content %}
+<section class="section page-enter oi-page">
+  <div class="container oi-narrow" style="text-align:center;">
+    <div class="oi-status-icon error">!</div>
+    <h1 class="section-title">Payment Failed</h1>
+    <p style="color:var(--on-surface-variant); margin-bottom:2rem;">Your payment did not complete. Your cart is still saved in this browser.</p>
+    <a class="gp-btn-primary" href="{{ url_for('checkout') }}">Try Again</a>
+  </div>
+</section>
+{% endblock %}

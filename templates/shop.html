@@ -2,24 +2,37 @@
 {% block title %}Shop — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
 
 {% block content %}
-<section class="section" style="padding-top:7rem;">
+<section class="section oi-page-shell">
   <div class="container">
 
     <!-- Featured Banner -->
     <div class="shop-banner">
       <div class="shop-banner-text">
-        <div class="label-caps" style="color:var(--text-muted); margin-bottom:0.5rem;">TECHNIQUE SPOTLIGHT</div>
-        <h2 class="headline-md" style="color:var(--on-surface); margin-bottom:1rem;">Mastering the Outside Edge</h2>
+        <div class="label-caps" style="color:var(--secondary); margin-bottom:0.5rem;">CURATED RINK GEAR</div>
+        <h1 class="headline-md" style="color:var(--primary); margin-bottom:1rem;">Equipment that supports cleaner practice days.</h1>
         <p class="body-md" style="color:var(--on-surface-variant); margin-bottom:1.5rem;">
-          A deep outside edge is the foundation of powerful stroking and complex turns. Discover our curated selection of blades designed to enhance your edge control and stability.
+          Browse blades, apparel, and essentials chosen for edge control, durability, and confidence from warm-up to final pose.
         </p>
-        <a href="{{ url_for('techniques') }}" class="article-card-read-link">Read the full guide →</a>
+        <a href="{{ url_for('techniques') }}" class="article-card-read-link">Pair gear with technique -&gt;</a>
       </div>
-      <img src="/static/images/shop-banner.jpg" alt="Skating blade on ice" class="shop-banner-img"
+      <img src="{{ url_for('static', filename='images/pro_ice.png') }}" alt="Skates and training gear on ice" class="shop-banner-img"
            onerror="this.style.background='linear-gradient(135deg, var(--surface-container-low), var(--surface-container))'; this.style.minHeight='250px';">
     </div>
 
     <!-- Filter Tabs -->
+    <form method="get" action="{{ url_for('shop') }}" class="oi-shop-filter">
+      <input class="form-input" type="search" name="q" value="{{ q or '' }}" placeholder="Search products, SKU, gear...">
+      <select class="form-input" name="category">
+        <option value="">All categories</option>
+        {% for cat in categories %}<option value="{{ cat }}" {{ 'selected' if selected_category == cat else '' }}>{{ cat }}</option>{% endfor %}
+      </select>
+      <select class="form-input" name="sort">
+        <option value="newest" {{ 'selected' if sort == 'newest' else '' }}>Newest</option>
+        <option value="price_asc" {{ 'selected' if sort == 'price_asc' else '' }}>Price: Low to High</option>
+        <option value="price_desc" {{ 'selected' if sort == 'price_desc' else '' }}>Price: High to Low</option>
+      </select>
+      <button class="gp-btn-primary" type="submit">Filter</button>
+    </form>
     <div class="filter-bar">
       <button class="filter-pill active" onclick="filterProducts('all', this)">All Gear</button>
       {% for cat in categories %}
@@ -28,7 +41,7 @@
     </div>
 
     <!-- Product Grid -->
-    <div class="grid-3" id="productGrid">
+    <div class="grid-3 oi-product-grid" id="productGrid">
       {% for product in products %}
       <div class="product-card" data-category="{{ product.category or 'all' }}">
         <div class="product-card-img-wrap">
@@ -44,12 +57,15 @@
         <div class="product-card-body">
           <div class="product-card-header">
             <h3 class="product-card-name">{{ product.name }}</h3>
-            <span class="product-card-price">₹{{ '%.2f' % product.base_price }}</span>
+            <span class="product-card-price">
+              {% if product.sale_price is not none %}<s style="font-size:0.85rem;color:var(--text-muted);">₹{{ '%.2f' % product.base_price }}</s> ₹{{ '%.2f' % product.sale_price }}{% else %}₹{{ '%.2f' % product.base_price }}{% endif %}
+            </span>
           </div>
           <p class="product-card-desc">{{ product.description or '' }}</p>
           <div class="product-card-actions">
-            <button class="btn-add-cart" onclick="addToCart(this, event, {{ product.name|tojson }}, '{{ product.base_price }}', '{{ product.id }}')">Add to Cart</button>
+            <button class="btn-add-cart" {% if product.stock_quantity|int <= 0 %}disabled style="opacity:0.5;"{% endif %} onclick="addToCart(this, event, {{ product.name|tojson }}, '{{ product.sale_price if product.sale_price is not none else product.base_price }}', '{{ product.id }}')">{{ 'Out of Stock' if product.stock_quantity|int <= 0 else 'Add to Cart' }}</button>
             <a href="{{ url_for('product', product_id=product.id) }}" class="btn-view-details">View Details →</a>
+            <button class="btn-view-details" type="button" onclick="toggleWishlist('{{ product.id }}')">Wishlist</button>
           </div>
         </div>
       </div>
@@ -71,6 +87,11 @@ function filterProducts(cat, btn) {
       c.style.display = 'none';
     }
   });
+}
+function toggleWishlist(productId) {
+  var fd = new URLSearchParams(); fd.set('product_id', productId);
+  fetch('/api/wishlist/toggle', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+    .then(r => r.json()).then(d => showToast(d.msg || 'Wishlist updated', d.ok ? '' : 'error'));
 }
 </script>
 {% endblock %}

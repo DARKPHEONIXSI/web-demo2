@@ -2,9 +2,9 @@
 {% block title %}Admin — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
 
 {% block content %}
-<div style="display:flex; min-height:100vh; padding-top:60px;">
+<div class="oi-admin-shell">
   <!-- Sidebar -->
-  <aside style="width:250px; background:var(--surface-white); border-right:1px solid var(--isu-pale); padding:2rem 1rem; position:fixed; top:60px; bottom:0; overflow-y:auto;">
+  <aside class="oi-admin-sidebar">
     <div class="section-label" style="padding:0 1rem; margin-bottom:1rem;">DASHBOARD</div>
     {% set nav_items = [
       ('dashboard', 'dashboard', 'Overview'),
@@ -19,10 +19,10 @@
       ('settings', 'settings', 'Settings'),
       ('users', 'group', 'Users'),
     ] %}
-    <nav style="display:flex; flex-direction:column; gap:0.25rem;">
+    <nav class="oi-admin-nav">
       {% for key, icon, label in nav_items %}
       <a href="{{ url_for('admin.admin_index', sec=key) }}" 
-         style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem 1rem; border-radius:var(--radius); text-decoration:none; color:{% if sec == key %}var(--primary){% else %}var(--on-surface-variant){% endif %}; background:{% if sec == key %}rgba(30,136,229,0.05){% else %}transparent{% endif %}; font-weight:{% if sec == key %}600{% else %}500{% endif %}; transition:var(--transition);">
+         class="oi-admin-link {% if sec == key %}active{% endif %}">
         <span class="material-symbols-outlined" style="font-size:20px;">{{ icon }}</span>
         {{ label }}
       </a>
@@ -36,32 +36,36 @@
   </aside>
 
   <!-- Main Content -->
-  <main style="flex:1; margin-left:250px; padding:3rem; max-width:1200px;">
+  <main class="oi-admin-main">
 
   {# ── DASHBOARD ──────────────────────────────────────────── #}
   {% if sec == 'dashboard' %}
   <div>
     <h2 class="display-lg" style="margin-bottom:2rem; font-size:32px;">Overview</h2>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:3rem;">
-      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
-        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ post_count }}</div>
-        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Posts</div>
+    <div class="oi-admin-stat-grid">
+      <div class="oi-admin-stat">
+        <strong>{{ post_count }}</strong>
+        <span>Posts</span>
       </div>
-      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
-        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ tech_count }}</div>
-        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Techniques</div>
+      <div class="oi-admin-stat">
+        <strong>{{ tech_count }}</strong>
+        <span>Techniques</span>
       </div>
-      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
-        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ product_count }}</div>
-        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Products</div>
+      <div class="oi-admin-stat">
+        <strong>{{ product_count }}</strong>
+        <span>Products</span>
       </div>
-      <div style="background:var(--surface-white); border:1px solid var(--isu-pale); border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
-        <div class="display-lg" style="font-size:36px; color:var(--primary); margin-bottom:0.5rem;">{{ gallery_count }}</div>
-        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Gallery</div>
+      <div class="oi-admin-stat">
+        <strong>{{ gallery_count }}</strong>
+        <span>Gallery</span>
       </div>
-      <div style="background:var(--surface-white); border:1px solid {% if unread_count %}var(--secondary){% else %}var(--isu-pale){% endif %}; border-radius:var(--radius-lg); padding:1.5rem; text-align:center; box-shadow:var(--shadow-sm);">
-        <div class="display-lg" style="font-size:36px; color:{% if unread_count %}var(--secondary){% else %}var(--primary){% endif %}; margin-bottom:0.5rem;">{{ unread_count }}</div>
-        <div style="color:var(--on-surface-variant); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">Unread Msgs</div>
+      <div class="oi-admin-stat" style="border-color:{% if unread_count %}var(--secondary){% else %}var(--isu-pale){% endif %};">
+        <strong style="color:{% if unread_count %}var(--secondary){% else %}var(--primary){% endif %};">{{ unread_count }}</strong>
+        <span>Unread Msgs</span>
+      </div>
+      <div class="oi-admin-stat">
+        <strong style="color:var(--secondary);">₹{{ '%.0f' % revenue }}</strong>
+        <span>Revenue</span>
       </div>
     </div>
     
@@ -69,7 +73,15 @@
       <a href="{{ url_for('admin.admin_index', sec='new_post') }}" class="gp-btn-primary">+ New Post</a>
       <a href="{{ url_for('admin.admin_index', sec='techniques') }}" class="gp-btn-secondary">Manage Techniques</a>
       <a href="{{ url_for('admin.admin_index', sec='settings') }}" class="gp-btn-secondary">Site Settings</a>
+      <a href="{{ url_for('admin.admin_orders') }}" class="gp-btn-secondary">Orders</a>
     </div>
+
+    {% if low_stock %}
+    <div style="margin-top:3rem; background:var(--surface-white); border:1px solid var(--error); border-radius:var(--radius-lg); padding:1.5rem;">
+      <h3 class="headline-md" style="margin-bottom:1rem;">Low Stock Alerts</h3>
+      {% for p in low_stock %}<div style="display:flex; justify-content:space-between; border-top:1px solid var(--isu-pale); padding:0.75rem 0;"><span>{{ p.name }}</span><strong>{{ p.stock_quantity }} left</strong></div>{% endfor %}
+    </div>
+    {% endif %}
 
     <div style="margin-top:4rem;">
       <h3 class="headline-md" style="margin-bottom:1.5rem;">Recent Posts</h3>
@@ -141,6 +153,36 @@
     <div class="form-group">
       <label class="form-label">Excerpt (optional)</label>
       <textarea class="form-textarea" id="pExcerpt" rows="2" placeholder="Short summary…">{{ edit_post.excerpt if edit_post else '' }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Cover Image URL</label>
+        <input class="form-input" id="pCoverImage" value="{{ edit_post.cover_image if edit_post else '' }}" placeholder="/uploads/image.webp">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <input class="form-input" id="pCategory" value="{{ edit_post.category if edit_post else '' }}" placeholder="Training">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Tags</label>
+        <input class="form-input" id="pTags" value="{{ edit_post.tags if edit_post else '' }}" placeholder="axel, practice, competition">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Slug</label>
+        <input class="form-input" id="pSlug" value="{{ edit_post.slug if edit_post else '' }}" placeholder="auto-generated if empty">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SEO Title</label>
+        <input class="form-input" id="pSeoTitle" value="{{ edit_post.seo_title if edit_post else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SEO Description</label>
+        <input class="form-input" id="pSeoDescription" value="{{ edit_post.seo_description if edit_post else '' }}">
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Body *</label>
@@ -400,6 +442,16 @@
       <label class="form-label">Page Name *</label>
       <input class="form-input" id="pgName" value="{{ edit_page.name if edit_page else '' }}" placeholder="e.g. About">
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SEO Title</label>
+        <input class="form-input" id="pgSeoTitle" value="{{ edit_page.seo_title if edit_page else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SEO Description</label>
+        <input class="form-input" id="pgSeoDescription" value="{{ edit_page.seo_description if edit_page else '' }}">
+      </div>
+    </div>
     
     <div class="form-group">
       <label class="form-label">Body</label>
@@ -553,9 +605,49 @@
       <label class="form-label">Description (HTML allowed)</label>
       <textarea class="form-textarea" id="prodDesc" rows="4">{{ edit_product.description if edit_product else '' }}</textarea>
     </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <input class="form-input" id="prodCategory" value="{{ edit_product.category if edit_product else '' }}" placeholder="Skates">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Badge</label>
+        <input class="form-input" id="prodBadge" value="{{ edit_product.badge if edit_product else '' }}" placeholder="Best Seller">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SKU</label>
+        <input class="form-input" id="prodSku" value="{{ edit_product.sku if edit_product else '' }}" placeholder="SKU-001">
+      </div>
+    </div>
     <div class="form-group">
       <label class="form-label">Base Price (₹)</label>
       <input class="form-input" type="number" id="prodPrice" value="{{ edit_product.base_price if edit_product else 0 }}" style="max-width:150px;">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Sale Price (₹)</label>
+        <input class="form-input" type="number" id="prodSalePrice" value="{{ edit_product.sale_price if edit_product and edit_product.sale_price is not none else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock</label>
+        <input class="form-input" type="number" id="prodStock" value="{{ edit_product.stock_quantity if edit_product else 0 }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="prodStatus">
+          {% for s in ['active','draft','archived'] %}<option value="{{ s }}" {{ 'selected' if edit_product and edit_product.status == s else '' }}>{{ s|title }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">SEO Title</label>
+        <input class="form-input" id="prodSeoTitle" value="{{ edit_product.seo_title if edit_product else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SEO Description</label>
+        <input class="form-input" id="prodSeoDescription" value="{{ edit_product.seo_description if edit_product else '' }}">
+      </div>
     </div>
     <button class="gp-btn-primary" id="saveProdBtn" style="margin-bottom: 3rem;">💾 Save Product Base</button>
     
@@ -564,7 +656,7 @@
     <div style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom: 2rem;">
       {% for v in product_variants %}
       <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding:0.75rem 1rem;">
-        <div style="font-size:14px; color:var(--primary);"><strong>{{ v.color or 'Default' }}</strong> | Size: {{ v.size or 'Default' }} | Stock: {{ v.stock_quantity }}</div>
+        <div style="font-size:14px; color:var(--primary);"><strong>{{ v.color or 'Default' }}</strong> | Size: {{ v.size or 'Default' }} | Stock: {{ v.stock_quantity }}{% if v.price_override is not none %} | ₹{{ v.price_override }}{% endif %}</div>
         <button class="gp-btn-secondary" style="padding:0.3rem 0.6rem; font-size:12px; border-color:var(--error); color:var(--error);" onclick="deleteVariant('{{ v.id }}')">✕</button>
       </div>
       {% endfor %}
@@ -572,6 +664,7 @@
          <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Color</label><input class="form-input" id="varColor" placeholder="Color (optional)"></div>
          <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Size</label><input class="form-input" id="varSize" placeholder="Size (optional)"></div>
          <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Stock</label><input class="form-input" type="number" id="varStock" placeholder="Qty" value="10" style="width: 80px;"></div>
+         <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Price Override</label><input class="form-input" type="number" id="varPrice" placeholder="Optional" style="width: 120px;"></div>
          <button class="gp-btn-secondary" style="padding:0.7rem 1rem;" onclick="saveVariant('{{ edit_product.id }}')">+ Add</button>
       </div>
     </div>
@@ -587,7 +680,8 @@
       {% endfor %}
     </div>
     <div style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; background:var(--surface-container-low); border:1px solid var(--isu-pale); border-radius:var(--radius); padding:1rem;">
-       <div class="form-group" style="margin:0;flex:1;"><label class="form-label" style="font-size:12px;">Image URL (from Media Library)</label><input class="form-input" id="imgUrl" placeholder="/uploads/..."></div>
+       <div class="form-group" style="margin:0;flex:1;"><label class="form-label" style="font-size:12px;">Image URL (from Media Library)</label><input class="form-input" id="imgUrl" list="mediaUrlOptions" placeholder="/uploads/..."></div>
+       <datalist id="mediaUrlOptions">{% for m in media_items if m.media_type == 'image' %}<option value="{{ m.url }}">{{ m.alt_text or m.url }}</option>{% endfor %}</datalist>
        <div class="form-group" style="margin:0;"><label class="form-label" style="font-size:12px;">Match Color (optional)</label><input class="form-input" id="imgColor" placeholder="e.g. Red"></div>
        <button class="gp-btn-secondary" style="padding:0.7rem 1rem;" onclick="saveProdImage('{{ edit_product.id }}')">+ Add</button>
     </div>
@@ -673,6 +767,12 @@ function doSavePost(forceDraft){
   var title=document.getElementById('pTitle').value.trim();
   var body=document.getElementById('pBody').innerHTML.trim();
   var excerpt=document.getElementById('pExcerpt').value.trim();
+  var coverImage=document.getElementById('pCoverImage').value.trim();
+  var category=document.getElementById('pCategory').value.trim();
+  var tags=document.getElementById('pTags').value.trim();
+  var slug=document.getElementById('pSlug').value.trim();
+  var seoTitle=document.getElementById('pSeoTitle').value.trim();
+  var seoDescription=document.getElementById('pSeoDescription').value.trim();
   var author=document.getElementById('pAuthor').value.trim();
   var rt=document.getElementById('pReadTime').value;
   var date=document.getElementById('pDate').value;
@@ -681,7 +781,7 @@ function doSavePost(forceDraft){
   var status=isDraft?'draft':'published';
   var id='{{ edit_post.id if edit_post else "" }}';
   if(!title||!body){showToast('Title and body are required.','error');return;}
-  var params='title='+encodeURIComponent(title)+'&body='+encodeURIComponent(body)+'&excerpt='+encodeURIComponent(excerpt)+'&author='+encodeURIComponent(author)+'&read_time='+rt+'&post_date='+date+'&pinned='+pinned+'&status='+status+(id?'&id='+encodeURIComponent(id):'');
+  var params='title='+encodeURIComponent(title)+'&body='+encodeURIComponent(body)+'&excerpt='+encodeURIComponent(excerpt)+'&cover_image='+encodeURIComponent(coverImage)+'&category='+encodeURIComponent(category)+'&tags='+encodeURIComponent(tags)+'&slug='+encodeURIComponent(slug)+'&seo_title='+encodeURIComponent(seoTitle)+'&seo_description='+encodeURIComponent(seoDescription)+'&author='+encodeURIComponent(author)+'&read_time='+rt+'&post_date='+date+'&pinned='+pinned+'&status='+status+(id?'&id='+encodeURIComponent(id):'');
   fetch('/api/save_post',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params})
     .then(r=>r.json()).then(d=>{
       if(d.ok){showToast(isDraft?'Draft saved 📝':'Post published!');if(!id&&d.id)setTimeout(()=>window.location.href='/admin/?edit='+d.id,800);}
@@ -708,7 +808,7 @@ document.getElementById('saveTechBtn')&&document.getElementById('saveTechBtn').a
 function deleteTech(id,title){if(!confirm('Delete "'+title+'"?'))return;fetch('/api/delete_technique',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>location.reload(),700);}});}
 
 // Page editor
-document.getElementById('savePageBtn')&&document.getElementById('savePageBtn').addEventListener('click',function(){var id=document.getElementById('pgId').value;var name=document.getElementById('pgName').value.trim();var body=document.getElementById('pgBody').innerHTML.trim();if(!name){showToast('Page name required.','error');return;}var params='name='+encodeURIComponent(name)+'&body='+encodeURIComponent(body)+(id?'&id='+encodeURIComponent(id):'');fetch('/api/save_page',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Page saved!');if(!id&&d.id)setTimeout(()=>window.location.href='/admin/?editpage='+d.id,800);}else showToast(d.msg,'error');});});
+document.getElementById('savePageBtn')&&document.getElementById('savePageBtn').addEventListener('click',function(){var id=document.getElementById('pgId').value;var name=document.getElementById('pgName').value.trim();var body=document.getElementById('pgBody').innerHTML.trim();var seoTitle=document.getElementById('pgSeoTitle').value.trim();var seoDescription=document.getElementById('pgSeoDescription').value.trim();if(!name){showToast('Page name required.','error');return;}var params='name='+encodeURIComponent(name)+'&body='+encodeURIComponent(body)+'&seo_title='+encodeURIComponent(seoTitle)+'&seo_description='+encodeURIComponent(seoDescription)+(id?'&id='+encodeURIComponent(id):'');fetch('/api/save_page',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Page saved!');if(!id&&d.id)setTimeout(()=>window.location.href='/admin/?editpage='+d.id,800);}else showToast(d.msg,'error');});});
 function deletePage(id,name){if(!confirm('Delete "'+name+'"?'))return;fetch('/api/delete_page',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+encodeURIComponent(id)}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Deleted.');setTimeout(()=>window.location.href='/admin/?sec=pages',700);}});}
 
 // Settings
@@ -740,10 +840,10 @@ function markRead(id){fetch('/api/mark_read',{method:'POST',headers:{'Content-Ty
 function deleteMsg(id){if(!confirm('Delete this message?'))return;fetch('/api/delete_message',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok){var row=document.getElementById('msg-'+id);if(row)row.remove();showToast('Deleted.');}});}
 
 // CMS Products & Media
-document.getElementById('saveProdBtn')&&document.getElementById('saveProdBtn').addEventListener('click',function(){var id=new URLSearchParams(window.location.search).get('editproduct')||'';var name=document.getElementById('prodName').value.trim();var desc=document.getElementById('prodDesc').value.trim();var price=document.getElementById('prodPrice').value;if(!name){showToast('Name required','error');return;}var params='name='+encodeURIComponent(name)+'&description='+encodeURIComponent(desc)+'&base_price='+price+(id?'&id='+id:'');fetch('/api/save_product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Saved!');if(!id)window.location.href='/admin/?editproduct='+d.id;}});});
+document.getElementById('saveProdBtn')&&document.getElementById('saveProdBtn').addEventListener('click',function(){var id=new URLSearchParams(window.location.search).get('editproduct')||'';var name=document.getElementById('prodName').value.trim();var desc=document.getElementById('prodDesc').value.trim();var price=document.getElementById('prodPrice').value;var category=document.getElementById('prodCategory').value.trim();var badge=document.getElementById('prodBadge').value.trim();var sku=document.getElementById('prodSku').value.trim();var sale=document.getElementById('prodSalePrice').value;var stock=document.getElementById('prodStock').value;var status=document.getElementById('prodStatus').value;var seoTitle=document.getElementById('prodSeoTitle').value.trim();var seoDescription=document.getElementById('prodSeoDescription').value.trim();if(!name){showToast('Name required','error');return;}var params='name='+encodeURIComponent(name)+'&description='+encodeURIComponent(desc)+'&category='+encodeURIComponent(category)+'&badge='+encodeURIComponent(badge)+'&sku='+encodeURIComponent(sku)+'&status='+encodeURIComponent(status)+'&stock_quantity='+encodeURIComponent(stock)+'&base_price='+price+'&sale_price='+encodeURIComponent(sale)+'&seo_title='+encodeURIComponent(seoTitle)+'&seo_description='+encodeURIComponent(seoDescription)+(id?'&id='+id:'');fetch('/api/save_product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:params}).then(r=>r.json()).then(d=>{if(d.ok){showToast('Saved!');if(!id)window.location.href='/admin/?editproduct='+d.id;}else showToast(d.msg,'error');});});
 function deleteProduct(id){if(confirm('Delete product?'))fetch('/api/delete_product',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
 
-function saveVariant(prodId){var color=document.getElementById('varColor').value.trim();var size=document.getElementById('varSize').value.trim();var stock=document.getElementById('varStock').value;fetch('/api/save_variant',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'product_id='+prodId+'&color='+encodeURIComponent(color)+'&size='+encodeURIComponent(size)+'&stock_quantity='+stock}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
+function saveVariant(prodId){var color=document.getElementById('varColor').value.trim();var size=document.getElementById('varSize').value.trim();var stock=document.getElementById('varStock').value;var price=document.getElementById('varPrice').value;fetch('/api/save_variant',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'product_id='+prodId+'&color='+encodeURIComponent(color)+'&size='+encodeURIComponent(size)+'&stock_quantity='+stock+'&price_override='+encodeURIComponent(price)}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else showToast(d.msg,'error');});}
 function deleteVariant(id){if(confirm('Delete variant?'))fetch('/api/delete_variant',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'id='+id}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}
 
 function saveProdImage(prodId){var url=document.getElementById('imgUrl').value.trim();var color=document.getElementById('imgColor').value.trim();if(!url)return;fetch('/api/save_prod_image',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'product_id='+prodId+'&image_url='+encodeURIComponent(url)+'&color_match='+encodeURIComponent(color)}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();});}

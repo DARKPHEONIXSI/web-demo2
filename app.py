@@ -9,6 +9,7 @@ from datetime import date
 
 from flask import (
     Flask,
+    Response,
     jsonify,
     redirect,
     render_template,
@@ -34,6 +35,19 @@ from models import (
     get_settings,
     ensure_runtime_schema,
 )
+
+
+def log_analytics(event_type: str, object_id: str = "", user_id: str = ""):
+    """Best-effort analytics logging for views/conversions."""
+    try:
+        db = get_db()
+        db.execute(
+            "INSERT INTO analytics_events (event_type, object_id, user_id) VALUES (?, ?, ?)",
+            (event_type, object_id or "", user_id or None),
+        )
+        db.commit()
+    except Exception:
+        pass
 
 csrf = CSRFProtect()
 talisman = Talisman()
@@ -62,10 +76,10 @@ def create_app():
         content_security_policy={
             "default-src": "'self'",
             "script-src": "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
-            "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
             "font-src": "'self' https://fonts.gstatic.com",
             "img-src": "'self' data: https:",
-            "connect-src": "'self' https://api.razorpay.com",
+            "connect-src": "'self' https://api.razorpay.com https://accounts.google.com",
             "frame-src": "https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
         },
         session_cookie_secure=app.config.get("FLASK_ENV") == "production",
@@ -126,6 +140,15 @@ def create_app():
     def uploaded_file(filename):
         return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
+    @app.route("/favicon.ico")
+    def favicon():
+        """Serve a lightweight site icon to avoid browser favicon 404s."""
+        return send_from_directory(
+            os.path.join(app.root_path, "static", "images"),
+            "pro_ice.png",
+            mimetype="image/png",
+        )
+
     # ── Public routes ─────────────────────────────────────────────
 
     @app.route("/")
@@ -175,7 +198,7 @@ def create_app():
         """Single post view."""
         db = get_db()
         post = db.execute(
-            "SELECT * FROM posts WHERE id = ? LIMIT 1", (post_id,)
+            "SELECT * FROM posts WHERE id = ? OR slug = ? LIMIT 1", (post_id, post_id)
         ).fetchone()
 
         # Non-admins can't see drafts
@@ -185,13 +208,45 @@ def create_app():
         # Related posts
         related = []
         if post:
+            log_analytics("post_view", post["id"], (get_sess() or {}).get("id", ""))
             status_clause = "" if is_admin() else "AND status='published'"
             related = db.execute(
-                f"SELECT id, title, post_date, read_time FROM posts WHERE id != ? {status_clause} ORDER BY post_date DESC LIMIT 3",
-                (post_id,),
+                f"""SELECT id, title, slug, post_date, read_time FROM posts
+                    WHERE id != ? {status_clause} AND (category=? OR tags LIKE ?)
+                    ORDER BY post_date DESC LIMIT 3""",
+                (post["id"], post["category"], f"%{post['category']}%"),
+            ).fetchall()
+            if not related:
+                related = db.execute(
+                    f"SELECT id, title, slug, post_date, read_time FROM posts WHERE id != ? {status_clause} ORDER BY post_date DESC LIMIT 3",
+                    (post["id"],),
+                ).fetchall()
+        comments = []
+        if post:
+            comments = db.execute(
+                "SELECT * FROM post_comments WHERE post_id=? AND status='approved' ORDER BY created_at DESC",
+                (post["id"],),
             ).fetchall()
 
-        return render_template("post.html", post=post, related=related)
+        return render_template("post.html", post=post, related=related, comments=comments)
+
+    @app.route("/category/<category>")
+    def category_archive(category):
+        db = get_db()
+        posts = db.execute(
+            "SELECT * FROM posts WHERE status='published' AND lower(category)=lower(?) ORDER BY post_date DESC",
+            (category,),
+        ).fetchall()
+        return render_template("index.html", posts=posts, q="", page_num=1, total=len(posts), total_all=len(posts), total_filtered=len(posts), total_pages=1, tech_count=0, per_page=app.config["PER_PAGE"], archive_title=f"Category: {category}")
+
+    @app.route("/tag/<tag>")
+    def tag_archive(tag):
+        db = get_db()
+        posts = db.execute(
+            "SELECT * FROM posts WHERE status='published' AND tags LIKE ? ORDER BY post_date DESC",
+            (f"%{tag}%",),
+        ).fetchall()
+        return render_template("index.html", posts=posts, q="", page_num=1, total=len(posts), total_all=len(posts), total_filtered=len(posts), total_pages=1, tech_count=0, per_page=app.config["PER_PAGE"], archive_title=f"Tag: {tag}")
 
     @app.route("/gallery")
     def gallery():
@@ -230,14 +285,42 @@ def create_app():
     @app.route("/profile")
     def profile():
         """User profile page."""
-        return render_template("profile.html")
+        orders = []
+        sess = get_sess()
+        if sess:
+            db = get_db()
+            orders = db.execute(
+                "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+                (sess.get("id"),),
+            ).fetchall()
+        return render_template("profile.html", orders=orders)
 
     @app.route("/shop")
     def shop():
         """Dedicated shop page for coach's skates."""
         db = get_db()
+        q = (request.args.get("q") or "").strip()
+        sort = request.args.get("sort") or "newest"
+        category = (request.args.get("category") or "").strip()
+        categories = [r[0] for r in db.execute(
+            "SELECT DISTINCT category FROM products WHERE status='active' AND category <> '' ORDER BY category"
+        ).fetchall()]
+        where = ["status='active'"]
+        params = []
+        if q:
+            where.append("(name LIKE ? OR description LIKE ? OR sku LIKE ?)")
+            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+        if category:
+            where.append("category=?")
+            params.append(category)
+        order_by = "created_at DESC"
+        if sort == "price_asc":
+            order_by = "COALESCE(sale_price, base_price) ASC"
+        elif sort == "price_desc":
+            order_by = "COALESCE(sale_price, base_price) DESC"
         products = db.execute(
-            "SELECT * FROM products ORDER BY created_at DESC"
+            f"SELECT * FROM products WHERE {' AND '.join(where)} ORDER BY {order_by}",
+            params,
         ).fetchall()
         prod_data = []
         for p in products:
@@ -252,17 +335,22 @@ def create_app():
                 else url_for("static", filename="images/pro_ice.png")
             )
             prod_data.append(p_dict)
-        return render_template("shop.html", products=prod_data)
+        return render_template("shop.html", products=prod_data, categories=categories, q=q, sort=sort, selected_category=category)
+
+    @app.route("/shop/category/<category>")
+    def shop_category(category):
+        return redirect(url_for("shop", category=category))
 
     @app.route("/shop/<product_id>")
     def product(product_id):
         """Single product details with variants."""
         db = get_db()
         product = db.execute(
-            "SELECT * FROM products WHERE id=?", (product_id,)
+            "SELECT * FROM products WHERE id=? AND status='active'", (product_id,)
         ).fetchone()
         if not product:
             return redirect(url_for("shop"))
+        log_analytics("product_view", product["id"], (get_sess() or {}).get("id", ""))
         variants = db.execute(
             "SELECT * FROM product_variants WHERE product_id=?", (product_id,)
         ).fetchall()
@@ -271,8 +359,12 @@ def create_app():
             (product_id,),
         ).fetchall()
         variants_list = [dict(v) for v in variants]
+        reviews = db.execute(
+            "SELECT * FROM product_reviews WHERE product_id=? AND status='approved' ORDER BY created_at DESC",
+            (product_id,),
+        ).fetchall()
         return render_template(
-            "product.html", product=product, variants=variants_list, images=images
+            "product.html", product=product, variants=variants_list, images=images, reviews=reviews
         )
 
     @app.route("/checkout")
@@ -283,7 +375,94 @@ def create_app():
     @app.route("/order-success", methods=["GET", "POST"])
     def order_success():
         """Order confirmation page."""
-        return render_template("success.html")
+        order = None
+        token = request.args.get("token", "")
+        if token:
+            order = get_db().execute(
+                "SELECT * FROM orders WHERE order_token=? LIMIT 1", (token,)
+            ).fetchone()
+        return render_template("success.html", order=order)
+
+    @app.route("/order/<order_token>")
+    def order_tracking(order_token):
+        """Public order tracking by private order token."""
+        db = get_db()
+        order = db.execute(
+            "SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)
+        ).fetchone()
+        items = []
+        if order:
+            items = db.execute(
+                """SELECT oi.*, p.name AS product_name, pv.color, pv.size
+                   FROM order_items oi
+                   LEFT JOIN products p ON p.id = oi.product_id
+                   LEFT JOIN product_variants pv ON pv.id = oi.product_variant_id
+                   WHERE oi.order_id=?""",
+                (order["id"],),
+            ).fetchall()
+        return render_template("order_tracking.html", order=order, items=items)
+
+    @app.route("/invoice/<order_token>")
+    def invoice(order_token):
+        db = get_db()
+        order = db.execute("SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)).fetchone()
+        items = []
+        if order:
+            items = db.execute(
+                """SELECT oi.*, p.name AS product_name FROM order_items oi
+                   LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id=?""",
+                (order["id"],),
+            ).fetchall()
+        return render_template("invoice.html", order=order, items=items)
+
+    @app.route("/returns/<order_token>")
+    def returns(order_token):
+        order = get_db().execute("SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)).fetchone()
+        return render_template("return_request.html", order=order)
+
+    @app.route("/payment-failed")
+    def payment_failed():
+        return render_template("payment_failed.html")
+
+    @app.route("/privacy")
+    def privacy():
+        return render_template("legal.html", title="Privacy Policy", body="We collect account, order, and contact information only to run the shop, fulfill orders, and provide support.")
+
+    @app.route("/terms")
+    def terms():
+        return render_template("legal.html", title="Terms of Service", body="By using this website, you agree to provide accurate order details and use the content and shop responsibly.")
+
+    @app.route("/shipping-returns")
+    def shipping_returns():
+        return render_template("legal.html", title="Shipping & Returns", body="Shipping timelines depend on destination and stock. Return requests can be submitted from your order tracking page.")
+
+    @app.route("/refund-policy")
+    def refund_policy():
+        return render_template("legal.html", title="Refund Policy", body="Refunds are reviewed after a return or cancellation request. Approved refunds are processed back to the original payment method.")
+
+    @app.route("/robots.txt")
+    def robots():
+        return Response("User-agent: *\nAllow: /\nSitemap: " + url_for("sitemap", _external=True) + "\n", mimetype="text/plain")
+
+    @app.route("/sitemap.xml")
+    def sitemap():
+        db = get_db()
+        urls = [url_for("home", _external=True), url_for("shop", _external=True), url_for("about", _external=True), url_for("contact", _external=True)]
+        urls += [url_for("post_detail", post_id=(r["slug"] or r["id"]), _external=True) for r in db.execute("SELECT id, slug FROM posts WHERE status='published'").fetchall()]
+        urls += [url_for("product", product_id=r["id"], _external=True) for r in db.execute("SELECT id FROM products WHERE status='active'").fetchall()]
+        body = "<?xml version='1.0' encoding='UTF-8'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>" + "".join(f"<url><loc>{u}</loc></url>" for u in urls) + "</urlset>"
+        return Response(body, mimetype="application/xml")
+
+    @app.route("/feed.xml")
+    def rss_feed():
+        db = get_db()
+        posts = db.execute("SELECT * FROM posts WHERE status='published' ORDER BY post_date DESC LIMIT 20").fetchall()
+        items = "".join(
+            f"<item><title>{p['title']}</title><link>{url_for('post_detail', post_id=(p['slug'] or p['id']), _external=True)}</link><description>{p['excerpt']}</description></item>"
+            for p in posts
+        )
+        body = f"<?xml version='1.0'?><rss version='2.0'><channel><title>{get_settings().get('blog_name','On Ice')}</title><link>{url_for('home', _external=True)}</link>{items}</channel></rss>"
+        return Response(body, mimetype="application/rss+xml")
 
     @app.route("/rules")
     def rules():

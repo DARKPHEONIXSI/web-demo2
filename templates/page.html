@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ pg['name'] + ' — ' if pg else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
-{% block description %}{{ pg['body']|striptags|truncate(155) if pg else '' }}{% endblock %}
+{% block title %}{{ (pg['seo_title'] or pg['name']) + ' — ' if pg else '' }}{{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}{{ (pg['seo_description'] or pg['body']|striptags|truncate(155)) if pg else '' }}{% endblock %}
 
 {% block content %}
 {% if not pg %}
-<section class="section page-enter" style="padding-top:7rem; text-align:center;">
-  <div class="container" style="max-width:600px;">
+<section class="section page-enter oi-page" style="text-align:center;">
+  <div class="container oi-narrow">
     <h2 class="display-lg" style="color:var(--primary); margin-bottom:1rem;">Page Not Found</h2>
     <a href="{{ url_for('home') }}" class="gp-btn-primary">← Back to Blog</a>
   </div>
 </section>
 {% else %}
-<article class="article-container page-enter">
-  <div class="article-header">
+<article class="article-container page-enter oi-page">
+  <div class="article-header oi-page-hero">
     <div style="margin-bottom:1.5rem;">
       <a href="{{ url_for('home') }}" class="gp-btn-secondary" style="font-size:13px; padding:0.4rem 0.8rem; border:none; background:transparent;">← Back to Blog</a>
     </div>

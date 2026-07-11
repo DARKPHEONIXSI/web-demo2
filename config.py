@@ -62,10 +62,7 @@ class Config:
     TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY")
 
     # ── File Storage ─────────────────────────────────────────
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_SECRET_KEY")
-    SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "onice-uploads")
-    STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "supabase" if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else "local")
+    STORAGE_BACKEND = "local"
 
     # ── Rate Limiting ────────────────────────────────────────
     RATELIMIT_DEFAULT = "200 per minute"

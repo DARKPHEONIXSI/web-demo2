@@ -1,30 +1,30 @@
 <!-- Auth Modal (Login / Register) — Glacial Precision -->
-<div class="modal-overlay" id="loginOverlay">
+<div class="modal-overlay oi-auth-modal" id="loginOverlay">
   <div class="modal-card">
     <div class="modal-top">
-      <div class="modal-icon">{% if mode == 'register' %}✨{% else %}⛸{% endif %}</div>
+      <div class="modal-icon">{% if mode == 'register' %}Create{% else %}On Ice{% endif %}</div>
       <div class="modal-title">{% if mode == 'register' %}Join {{ settings.get('blog_name', 'On Ice') }}{% else %}Sign In{% endif %}</div>
-      <div class="modal-sub">{{ settings.get('blog_name', 'On Ice') }} · Skating Blog</div>
+      <div class="modal-sub">{{ settings.get('blog_name', 'On Ice') }} · Account access</div>
     </div>
     <div class="modal-body">
       {% if mode == 'register' %}
         <div class="google-btn-slot" id="googleBtnSlot" data-client-id="{{ config.GOOGLE_CLIENT_ID or '' }}"></div>
         <p style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; line-height: 1.4;">
-          Join to get email notifications for new posts!
+          Join to save orders, reviews, wishlists, and rink notes.
         </p>
         <div class="modal-divider">or</div>
         <div class="form-group"><label class="form-label">Username</label><input class="modal-input" id="rUser" placeholder="Choose a username" autocomplete="username"></div>
         <div class="form-group"><label class="form-label">Password</label><input class="modal-input" type="password" id="rPass" placeholder="Min. 6 characters" autocomplete="new-password"></div>
         <div class="form-group"><label class="form-label">Confirm Password</label><input class="modal-input" type="password" id="rPass2" placeholder="Repeat password" autocomplete="new-password"></div>
         {% if config.TURNSTILE_SITE_KEY %}<div class="cf-turnstile" data-sitekey="{{ config.TURNSTILE_SITE_KEY }}" style="margin-bottom:1rem;"></div>{% endif %}
-        <button class="modal-submit" id="doRegBtn">Create Account ✨</button>
+        <button class="modal-submit" id="doRegBtn">Create Account</button>
         <div class="modal-footer-link">Already have an account? <a id="switchMode">Sign In</a></div>
       {% else %}
         <div class="google-btn-slot" id="googleBtnSlot" data-client-id="{{ config.GOOGLE_CLIENT_ID or '' }}"></div>
         <div class="modal-divider">or</div>
         <div class="form-group"><label class="form-label">Username or Email</label><input class="modal-input" id="lUser" placeholder="Your username" autocomplete="username"></div>
         <div class="form-group"><label class="form-label">Password</label><input class="modal-input" type="password" id="lPass" placeholder="••••••••" autocomplete="current-password"></div>
-        <button class="modal-submit" id="doLoginBtn">Sign In →</button>
+        <button class="modal-submit" id="doLoginBtn">Sign In</button>
         <div class="modal-footer-link">New here? <a id="switchMode">Create account</a></div>
       {% endif %}
     </div>

@@ -1,12 +1,13 @@
 """
 models.py — Database helpers for the On Ice skating blog.
-Uses SQLite locally or Supabase/Postgres via DATABASE_URL.
+Uses SQLite locally or Postgres via DATABASE_URL.
 """
 
 import os
 import secrets
 import sqlite3
 import json
+import re
 from datetime import date, datetime, timedelta
 
 import jwt
@@ -85,7 +86,7 @@ def get_db():
         database_url = current_app.config.get("DATABASE_URL")
         if database_url:
             if psycopg is None:
-                raise RuntimeError("psycopg is required for Supabase/Postgres DATABASE_URL")
+                raise RuntimeError("psycopg is required for Postgres DATABASE_URL")
             conn = psycopg.connect(database_url, row_factory=dict_row)
             g.db = PgConnection(conn)
         else:
@@ -107,16 +108,89 @@ def close_db(e=None):
 def ensure_runtime_schema():
     """Apply small additive runtime migrations."""
     db = get_db()
+    post_columns = {
+        "cover_image": "TEXT NOT NULL DEFAULT ''",
+        "category": "TEXT NOT NULL DEFAULT ''",
+        "tags": "TEXT NOT NULL DEFAULT ''",
+        "slug": "TEXT NOT NULL DEFAULT ''",
+        "seo_title": "TEXT NOT NULL DEFAULT ''",
+        "seo_description": "TEXT NOT NULL DEFAULT ''",
+    }
+    product_columns = {
+        "category": "TEXT NOT NULL DEFAULT ''",
+        "badge": "TEXT NOT NULL DEFAULT ''",
+        "sku": "TEXT NOT NULL DEFAULT ''",
+        "status": "TEXT NOT NULL DEFAULT 'active'",
+        "stock_quantity": "INTEGER NOT NULL DEFAULT 0",
+        "sale_price": "REAL DEFAULT NULL",
+        "seo_title": "TEXT NOT NULL DEFAULT ''",
+        "seo_description": "TEXT NOT NULL DEFAULT ''",
+    }
+    order_columns = {
+        "user_id": "TEXT DEFAULT NULL",
+        "shipping_amount": "REAL NOT NULL DEFAULT 0",
+        "tax_amount": "REAL NOT NULL DEFAULT 0",
+        "discount_amount": "REAL NOT NULL DEFAULT 0",
+        "tracking_number": "TEXT NOT NULL DEFAULT ''",
+        "fulfillment_status": "TEXT NOT NULL DEFAULT 'pending'",
+    }
+    custom_page_columns = {
+        "seo_title": "TEXT NOT NULL DEFAULT ''",
+        "seo_description": "TEXT NOT NULL DEFAULT ''",
+    }
     if using_postgres():
         try:
             db.execute("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_id TEXT NOT NULL DEFAULT ''")
+            for name, definition in post_columns.items():
+                db.execute(f"ALTER TABLE posts ADD COLUMN IF NOT EXISTS {name} {definition}")
+            for name, definition in product_columns.items():
+                pg_definition = definition.replace("REAL", "NUMERIC(12,2)")
+                db.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {name} {pg_definition}")
+            for name, definition in order_columns.items():
+                pg_definition = definition.replace("REAL", "NUMERIC(12,2)")
+                db.execute(f"ALTER TABLE orders ADD COLUMN IF NOT EXISTS {name} {pg_definition}")
+            for name, definition in custom_page_columns.items():
+                db.execute(f"ALTER TABLE custom_pages ADD COLUMN IF NOT EXISTS {name} {definition}")
+            create_feature_tables(db, postgres=True)
+            for row in db.execute("SELECT id, title FROM posts WHERE slug='' OR slug IS NULL").fetchall():
+                db.execute("UPDATE posts SET slug=? WHERE id=?", (unique_slug("posts", row["title"], row["id"]), row["id"]))
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)")
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''")
             db.commit()
         except Exception:
             db.rollback()
     else:
-        order_item_cols = [r[1] for r in db.execute("PRAGMA table_info(order_items)").fetchall()]
-        if order_item_cols and "product_id" not in order_item_cols:
-            db.execute("ALTER TABLE order_items ADD COLUMN product_id TEXT NOT NULL DEFAULT ''")
+        def table_exists(table: str) -> bool:
+            return db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table,),
+            ).fetchone() is not None
+
+        def add_missing_columns(table: str, columns: dict[str, str]):
+            if not table_exists(table):
+                return
+            existing = [r[1] for r in db.execute(f"PRAGMA table_info({table})").fetchall()]
+            if not existing:
+                return
+            for name, definition in columns.items():
+                if name not in existing:
+                    db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+        if table_exists("order_items"):
+            order_item_cols = [r[1] for r in db.execute("PRAGMA table_info(order_items)").fetchall()]
+            if order_item_cols and "product_id" not in order_item_cols:
+                db.execute("ALTER TABLE order_items ADD COLUMN product_id TEXT NOT NULL DEFAULT ''")
+        add_missing_columns("posts", post_columns)
+        add_missing_columns("products", product_columns)
+        add_missing_columns("orders", order_columns)
+        add_missing_columns("custom_pages", custom_page_columns)
+        create_feature_tables(db, postgres=False)
+        if table_exists("posts"):
+            for row in db.execute("SELECT id, title FROM posts WHERE slug='' OR slug IS NULL").fetchall():
+                db.execute("UPDATE posts SET slug=? WHERE id=?", (unique_slug("posts", row["title"], row["id"]), row["id"]))
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)")
+        if table_exists("products"):
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''")
 
     db.execute(
         """CREATE TABLE IF NOT EXISTS audit_logs (
@@ -131,10 +205,113 @@ def ensure_runtime_schema():
     db.commit()
 
 
+def create_feature_tables(db, postgres: bool = False):
+    """Create optional feature tables used by blog/shop production features."""
+    id_type = "BIGSERIAL PRIMARY KEY" if postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    money = "NUMERIC(12,2)" if postgres else "REAL"
+    db.execute(
+        f"""CREATE TABLE IF NOT EXISTS post_comments (
+             id {id_type},
+             post_id TEXT NOT NULL,
+             user_id TEXT DEFAULT NULL,
+             name TEXT NOT NULL,
+             body TEXT NOT NULL,
+             status TEXT NOT NULL DEFAULT 'approved',
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.execute(
+        f"""CREATE TABLE IF NOT EXISTS product_reviews (
+             id {id_type},
+             product_id TEXT NOT NULL,
+             user_id TEXT DEFAULT NULL,
+             name TEXT NOT NULL,
+             rating INTEGER NOT NULL DEFAULT 5,
+             body TEXT NOT NULL DEFAULT '',
+             status TEXT NOT NULL DEFAULT 'approved',
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS wishlist_items (
+             user_id TEXT NOT NULL,
+             product_id TEXT NOT NULL,
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+             PRIMARY KEY (user_id, product_id)
+           )"""
+    )
+    db.execute(
+        f"""CREATE TABLE IF NOT EXISTS coupons (
+             code TEXT NOT NULL PRIMARY KEY,
+             discount_type TEXT NOT NULL DEFAULT 'percent',
+             discount_value {money} NOT NULL DEFAULT 0,
+             active INTEGER NOT NULL DEFAULT 1,
+             expires_at TEXT DEFAULT NULL,
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.execute(
+        f"""CREATE TABLE IF NOT EXISTS return_requests (
+             id TEXT NOT NULL PRIMARY KEY,
+             order_id TEXT NOT NULL,
+             user_id TEXT DEFAULT NULL,
+             reason TEXT NOT NULL,
+             status TEXT NOT NULL DEFAULT 'requested',
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.execute(
+        """CREATE TABLE IF NOT EXISTS cart_items (
+             user_id TEXT NOT NULL,
+             product_id TEXT NOT NULL,
+             variant_id TEXT NOT NULL DEFAULT '',
+             quantity INTEGER NOT NULL DEFAULT 1,
+             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+             PRIMARY KEY (user_id, product_id, variant_id)
+           )"""
+    )
+    db.execute(
+        f"""CREATE TABLE IF NOT EXISTS analytics_events (
+             id {id_type},
+             event_type TEXT NOT NULL,
+             object_id TEXT NOT NULL DEFAULT '',
+             user_id TEXT DEFAULT NULL,
+             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_product_reviews_product_id ON product_reviews(product_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_return_requests_order_id ON return_requests(order_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type, created_at)")
+
+
+def slugify(value: str) -> str:
+    """Convert a title/name into a URL-safe slug."""
+    slug = re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+    return slug or gen_id()
+
+
+def unique_slug(table: str, base_value: str, current_id: str = "") -> str:
+    """Build a unique slug for posts or products."""
+    base = slugify(base_value)
+    slug = base
+    suffix = 2
+    db = get_db()
+    while True:
+        row = db.execute(
+            f"SELECT id FROM {table} WHERE slug=? AND id != ? LIMIT 1",
+            (slug, current_id or ""),
+        ).fetchone()
+        if not row:
+            return slug
+        slug = f"{base}-{suffix}"
+        suffix += 1
+
+
 def init_db():
     """Initialize the database if tables don't exist."""
     db = get_db()
-    schema_name = "schema_supabase.sql" if using_postgres() else "schema.sql"
+    schema_name = "schema_postgres.sql" if using_postgres() else "schema.sql"
     schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), schema_name)
     with open(schema_path, encoding="utf-8") as f:
         sql = f.read()

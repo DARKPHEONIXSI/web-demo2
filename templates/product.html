@@ -1,31 +1,35 @@
 {% extends 'base.html' %}
-{% block title %}{{ product['name'] }} — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block title %}{{ product['seo_title'] or product['name'] }} — {{ settings.get('blog_name', 'On Ice') }}{% endblock %}
+{% block description %}{{ product['seo_description'] or product['description']|striptags|truncate(155) }}{% endblock %}
+{% block structured_data %}
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":{{ product['name']|tojson }},"description":{{ (product['seo_description'] or product['description']|striptags)|tojson }},"sku":{{ product['sku']|tojson }},"offers":{"@type":"Offer","priceCurrency":"INR","price":"{{ product['sale_price'] if product['sale_price'] is not none else product['base_price'] }}","availability":"https://schema.org/{{ 'InStock' if product['stock_quantity']|int > 0 else 'OutOfStock' }}"}}</script>
+{% endblock %}
 
 {% block content %}
-<section class="section page-enter" style="padding-top:7rem;">
+<section class="section page-enter oi-page oi-product-shell">
   <div class="container">
     <div class="product-detail-grid">
 
       <!-- Product Images -->
-      <div>
-        <div style="border:1px solid var(--isu-pale); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1rem;">
+      <div class="oi-product-gallery">
+        <div class="oi-product-main-image">
           <img id="mainProductImage"
             src="{{ images[0]['image_url'] if images else url_for('static', filename='images/pro_ice.png') }}"
             class="product-detail-img">
         </div>
-        <div style="display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem;">
+        <div class="oi-thumb-row">
           {% for img in images %}
           <img src="{{ img['image_url'] }}" class="thumbnail-img" data-color="{{ img['color_match'] }}"
-            onclick="setMainImage(this.src)"
-            style="width: 80px; height: 80px; object-fit: cover; border-radius: var(--radius); cursor: pointer; border: 2px solid var(--isu-pale); transition: border-color 0.2s;">
+            onclick="setMainImage(this.src)">
           {% endfor %}
         </div>
       </div>
 
       <!-- Product Info -->
-      <div class="product-detail-info">
+      <div class="product-detail-info oi-form-card">
+        <div class="section-label">Rink-tested gear</div>
         <h1 class="product-detail-name">{{ product['name'] }}</h1>
-        <div id="productPrice" class="product-detail-price">₹{{ product['base_price'] }}</div>
+        <div id="productPrice" class="product-detail-price">₹{{ product['sale_price'] if product['sale_price'] is not none else product['base_price'] }}</div>
 
         <div class="product-detail-desc">
           {{ product['description']|safe }}
@@ -80,14 +84,34 @@
 
         <button id="addToCartBtn" class="gp-btn-primary" style="width: 100%; padding: 1rem; font-size: 1rem;"
           onclick="addVariantToCart()">Add to Cart</button>
+        <button class="gp-btn-secondary" style="width:100%; margin-top:0.75rem; justify-content:center;" onclick="toggleWishlist()">Add to Wishlist</button>
 
       </div>
     </div>
+
+    <section class="oi-card" style="margin-top:3rem;">
+      <h2 class="headline-md" style="margin-bottom:1rem;">Reviews</h2>
+      <div class="oi-review-grid">
+        {% for review in reviews %}
+        <div class="oi-review-card">
+          <strong>{{ review.name }}</strong> · {{ '★' * review.rating }}<br>
+          <span style="color:var(--on-surface-variant);">{{ review.body }}</span>
+        </div>
+        {% else %}<p style="color:var(--on-surface-variant);">No reviews yet.</p>{% endfor %}
+      </div>
+      {% if get_sess() %}
+      <div style="display:grid; gap:0.75rem; max-width:520px;">
+        <select class="form-input" id="reviewRating"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select>
+        <textarea class="form-textarea" id="reviewBody" placeholder="Write a review"></textarea>
+        <button class="gp-btn-primary" onclick="saveReview()">Submit Review</button>
+      </div>
+      {% endif %}
+    </section>
   </div>
 </section>
 
 <!-- Data Island for JS -->
-<div id="productData" data-product-id="{{ product['id'] }}" data-base-price="{{ product['base_price'] }}" data-product-name="{{ product['name'] }}"
+<div id="productData" data-product-id="{{ product['id'] }}" data-base-price="{{ product['sale_price'] if product['sale_price'] is not none else product['base_price'] }}" data-product-stock="{{ product['stock_quantity'] }}" data-product-name="{{ product['name'] }}"
   data-variants="{{ variants|tojson|forceescape }}">
 </div>
 
@@ -98,6 +122,7 @@
   const dataEl = document.getElementById('productData');
   const productId = dataEl.dataset.productId;
   const basePrice = parseFloat(dataEl.dataset.basePrice) || 0;
+  const productStock = parseInt(dataEl.dataset.productStock || '0', 10);
   const productName = dataEl.dataset.productName;
   const variants = JSON.parse(dataEl.dataset.variants || '[]');
   let selectedColor = null;
@@ -137,9 +162,9 @@
       btn.style.opacity = '0.5';
     } else if (currentVariant) {
       if (currentVariant.price_override) {
-        priceEl.textContent = '$' + currentVariant.price_override;
+        priceEl.textContent = '₹' + currentVariant.price_override;
       } else {
-        priceEl.textContent = '$' + basePrice;
+        priceEl.textContent = '₹' + basePrice;
       }
 
       if (currentVariant.stock_quantity > 0) {
@@ -154,10 +179,17 @@
         btn.style.opacity = '0.5';
       }
     } else if (variants.length === 0) {
-      stockEl.textContent = "In stock";
-      stockEl.style.color = "var(--success)";
-      btn.disabled = false;
-      btn.style.opacity = '1';
+      if (productStock > 0) {
+        stockEl.textContent = productStock + " in stock";
+        stockEl.style.color = "var(--success)";
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      } else {
+        stockEl.textContent = "Out of stock";
+        stockEl.style.color = "var(--error)";
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      }
     } else {
       stockEl.textContent = "Please select options";
       stockEl.style.color = "var(--text-muted)";
@@ -192,6 +224,21 @@
 
     window.addItemToCart(itemName, itemPrice, productId, currentVariant ? currentVariant.id : '');
     showToast('Added ' + itemName + ' to cart! 🛒');
+  }
+
+  function toggleWishlist() {
+    var fd = new URLSearchParams(); fd.set('product_id', productId);
+    fetch('/api/wishlist/toggle', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+      .then(r => r.json()).then(d => showToast(d.msg || 'Wishlist updated', d.ok ? '' : 'error'));
+  }
+
+  function saveReview() {
+    var fd = new URLSearchParams();
+    fd.set('product_id', productId);
+    fd.set('rating', document.getElementById('reviewRating').value);
+    fd.set('body', document.getElementById('reviewBody').value);
+    fetch('/api/review', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})
+      .then(r => r.json()).then(d => { showToast(d.msg, d.ok ? '' : 'error'); if(d.ok) setTimeout(()=>location.reload(), 700); });
   }
 
   if (variants.length > 0) {

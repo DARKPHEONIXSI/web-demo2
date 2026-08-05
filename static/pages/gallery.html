@@ -1,0 +1,63 @@
+<!-- Gallery Page -->
+<section class="section">
+  <div class="container">
+    <div class="page-hero reveal">
+      <div class="section-label">Gallery</div>
+      <h1 class="section-title">Moments frozen in time.</h1>
+      <p class="section-subtitle">Practice, performance, and the quiet discipline between them.</p>
+    </div>
+
+    <div class="filter-bar reveal" style="justify-content:center;">
+      <button class="filter-pill active" onclick="filterGallery('all', this)">All</button>
+      <button class="filter-pill" onclick="filterGallery('Performance', this)">Performance</button>
+      <button class="filter-pill" onclick="filterGallery('Practice', this)">Practice</button>
+      <button class="filter-pill" onclick="filterGallery('Competition', this)">Competition</button>
+      <button class="filter-pill" onclick="filterGallery('Coaching', this)">Coaching</button>
+    </div>
+
+    <div class="gallery-grid" id="galleryGrid">
+      <!-- Populated by script -->
+    </div>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightboxImg" src="/static/" alt="">
+</div>
+
+<script>
+(function() {
+  function renderGallery(items) {
+    document.getElementById('galleryGrid').innerHTML = items.map(g => `
+      <div class="gallery-item" onclick="openLightbox('${g.src}')">
+        <img src="/static/${g.src}" alt="${g.caption}" loading="lazy">
+        <div class="gallery-item-caption">
+          <span class="badge badge-info" style="margin-bottom:0.25rem;">${g.category}</span>
+          <div>${g.caption}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderGallery(GALLERY);
+
+  window.filterGallery = function(cat, btn) {
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    renderGallery(cat === 'all' ? GALLERY : GALLERY.filter(g => g.category === cat));
+  };
+
+  window.openLightbox = function(src) {
+    document.getElementById('lightboxImg').src = src;
+    document.getElementById('lightbox').classList.add('open');
+  };
+  window.closeLightbox = function() {
+    document.getElementById('lightbox').classList.remove('open');
+  };
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+  });
+})();
+</script>

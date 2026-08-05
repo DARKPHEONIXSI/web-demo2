@@ -1,4 +1,17 @@
-import sqlite3, os
+import os
+import sqlite3
+import subprocess
+
+database_url = os.getenv("DATABASE_URL")
+required_pg_vars = ("PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD")
+missing_pg_vars = [name for name in required_pg_vars if not os.getenv(name)]
+if not database_url and missing_pg_vars:
+    missing = ", ".join(missing_pg_vars)
+    raise RuntimeError(
+        "Set DATABASE_URL or explicit PostgreSQL environment variables "
+        f"(missing: {missing})."
+    )
+
 db = sqlite3.connect("simar.db")
 db.row_factory = sqlite3.Row
 
@@ -22,5 +35,19 @@ print(f"\nOrders: {db.execute('SELECT COUNT(*) as c FROM orders').fetchone()['c'
 db.close()
 
 # Check PostgreSQL
-os.environ['PGPASSWORD'] = 'onice_pass_2026'
-os.system('"C:\\Program Files\\PostgreSQL\\16\\bin\\psql.exe" -U onice_user -d onice -c "SELECT count(*) as products FROM products; SELECT count(*) as posts FROM posts; SELECT count(*) as gallery FROM gallery_items; SELECT count(*) as users FROM users;"')
+psql_command = [os.getenv("PSQL_PATH", "psql")]
+if database_url:
+    psql_command.extend(["--dbname", database_url])
+psql_command.extend(
+    [
+        "--command",
+        "SELECT count(*) AS products FROM products; "
+        "SELECT count(*) AS posts FROM posts; "
+        "SELECT count(*) AS gallery FROM gallery_items; "
+        "SELECT count(*) AS users FROM users;",
+    ]
+)
+try:
+    subprocess.run(psql_command, check=True)
+except subprocess.CalledProcessError:
+    raise RuntimeError("PostgreSQL data check failed.") from None

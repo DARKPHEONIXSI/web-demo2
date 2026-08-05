@@ -1,0 +1,180 @@
+<!-- Admin post-edit.html (Neumorphic) -->
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div class="admin-logo" style="gap: 10px;">
+      <img src="/static/assets/logo.jpg" alt="On Ice" style="height:32px; border-radius:4px; mix-blend-mode: multiply;">
+      <span style="font-weight: 700; letter-spacing: 1px;">ON ICE</span>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-label">Overview</div>
+      <a href="#/admin/dashboard" class="admin-nav-item"><span class="material-symbols-outlined">dashboard</span> Overview</a>
+      <a href="#/admin/orders" class="admin-nav-item"><span class="material-symbols-outlined">receipt_long</span> Orders</a>
+      <a href="#/admin/marketplace" class="admin-nav-item"><span class="material-symbols-outlined">storefront</span> Store</a>
+      <div class="admin-nav-label">Content</div>
+      <a href="#/admin/posts" class="admin-nav-item active"><span class="material-symbols-outlined">article</span> Posts</a>
+      <a href="#/admin/techniques" class="admin-nav-item"><span class="material-symbols-outlined">school</span> Techniques</a>
+      <a href="#/admin/gallery" class="admin-nav-item"><span class="material-symbols-outlined">photo_library</span> Gallery</a>
+      <a href="#/admin/pages" class="admin-nav-item"><span class="material-symbols-outlined">description</span> Pages</a>
+      <a href="#/admin/media" class="admin-nav-item"><span class="material-symbols-outlined">perm_media</span> Media</a>
+      <div class="admin-nav-label">System</div>
+      <a href="#/admin/messages" class="admin-nav-item"><span class="material-symbols-outlined">mail</span> Inbox</a>
+      <a href="#/admin/users" class="admin-nav-item"><span class="material-symbols-outlined">group</span> Users</a>
+      <a href="#/admin/settings" class="admin-nav-item"><span class="material-symbols-outlined">settings</span> Settings</a>
+      
+      <div style="margin-top:auto;">
+        <a href="#/home" class="admin-nav-item"><span class="material-symbols-outlined">public</span> View Site</a>
+        <a href="#/home" class="admin-nav-item" onclick="showToast('Logged out')"><span class="material-symbols-outlined">logout</span> Logout</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-main">
+    <header class="admin-header">
+      <div class="admin-search-bar">
+        <span class="material-symbols-outlined">search</span>
+        <input type="text" placeholder="Search..." onkeyup="if(window.filterAdmin) filterAdmin(this.value)">
+      </div>
+      
+      <div class="admin-header-actions">
+        <button class="admin-btn-icon" onclick="toggleTheme()" title="Toggle Dark Mode">
+          <span class="material-symbols-outlined">contrast</span>
+        </button>
+
+        <button class="admin-btn-icon" onclick="showToast('No new notifications')">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <div class="admin-profile" onclick="navigateTo('admin/settings')">
+          <img src="https://ui-avatars.com/api/?name=Admin+User&background=5a85ff&color=fff" alt="Admin">
+          <span>My Overview</span>
+          <span class="material-symbols-outlined" style="font-size:1rem; color:var(--admin-text-secondary);">expand_more</span>
+        </div>
+      </div>
+    </header>
+
+    <div style="margin-bottom:1.5rem;">
+      <h1 style="font-size:1.8rem; font-weight:700; color:var(--admin-text-primary); text-transform:capitalize;">post edit</h1>
+    </div>
+
+    
+    <div style="max-width:800px; margin:0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+        
+        <a href="#/admin/posts" class="soft-btn-outline">← Posts</a>
+      </div>
+      
+      <div class="soft-panel ">
+        <div class="form-group">
+          <label class="form-label">Title *</label>
+          <input class="form-input" id="pTitle" placeholder="Post title">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Excerpt (optional)</label>
+          <textarea class="form-input" id="pExcerpt" rows="2" placeholder="Short summary…"></textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Cover Image URL</label>
+            <input class="form-input" id="pCoverImage" placeholder="/uploads/image.webp">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Category</label>
+            <input class="form-input" id="pCategory" placeholder="Training">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Tags</label>
+            <input class="form-input" id="pTags" placeholder="news, updates, general">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Slug</label>
+            <input class="form-input" id="pSlug" placeholder="auto-generated if empty">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">SEO Title</label>
+            <input class="form-input" id="pSeoTitle">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">SEO Description</label>
+            <input class="form-input" id="pSeoDescription">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Body *</label>
+          <div style="border:1px solid var(--border-subtle); border-radius:var(--radius-lg); background:var(--bg-surface); overflow:hidden;">
+            <div style="display:flex; gap:0.25rem; padding:0.5rem; border-bottom:1px solid var(--border-subtle); background:var(--bg-deep); flex-wrap:wrap;">
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('bold',false,null)"><b>B</b></button>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('italic',false,null)"><i>I</i></button>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('underline',false,null)"><u>U</u></button>
+              <div style="width:1px; background:var(--border-subtle); margin:0 0.25rem;"></div>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('formatBlock',false,'<h2>')">H2</button>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('formatBlock',false,'<h3>')">H3</button>
+              <div style="width:1px; background:var(--border-subtle); margin:0 0.25rem;"></div>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('insertUnorderedList',false,null)">• List</button>
+              <button class="soft-btn-outline" style="padding:0.3rem 0.6rem; font-size:12px; border:none;" onclick="document.execCommand('insertOrderedList',false,null)">1. List</button>
+            </div>
+            <div id="pBody" contenteditable="true" style="padding:1.5rem; min-height:300px; outline:none; line-height:1.6;"></div>
+          </div>
+        </div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1.5rem; margin-bottom:2rem;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Author</label>
+            <input class="form-input" id="pAuthor" value="The Coach">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Read Time (min)</label>
+            <input class="form-input" type="number" id="pReadTime" value="4" min="1" max="60">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">Date</label>
+            <input class="form-input" type="date" id="pDate">
+          </div>
+        </div>
+        
+        <div style="display:flex; align-items:center; gap:2rem; margin-bottom:2rem;">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:600; color:var(--text-primary);">
+            <input type="checkbox" id="pPinned">
+            📌 Feature this post
+          </label>
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.9rem; font-weight:600; color:var(--text-primary);">
+            <input type="checkbox" id="pDraft">
+            📝 Save as Draft
+          </label>
+        </div>
+        
+        <div style="display:flex; gap:1rem;">
+          <button class="soft-btn" onclick="showToast('Post saved')">💾 Save & Publish</button>
+          <button class="soft-btn-outline" onclick="showToast('Draft saved')">📝 Save Draft</button>
+          <button class="soft-btn-outline" style="border-color:var(--accent-error); color:var(--accent-error);" onclick="showToast('Post deleted')">✕ Delete</button>
+        </div>
+      </div>
+    </div>
+  
+  </main>
+</div>
+
+<!-- Try to keep any scripts the page originally had -->
+<script>
+(function() {
+  const param = window.__routeParam;
+  if (param && window.POSTS) {
+    const post = window.POSTS.find(p => p.slug === param);
+    if (post) {
+      document.getElementById('editorTitle').textContent = 'Edit Post';
+      document.getElementById('pTitle').value = post.title;
+      document.getElementById('pExcerpt').value = post.excerpt;
+      document.getElementById('pCategory').value = post.category || 'Training';
+      document.getElementById('pSlug').value = post.slug;
+      document.getElementById('pReadTime').value = post.readTime || 4;
+      document.getElementById('pPinned').checked = !!post.pinned;
+    }
+  } else {
+    document.getElementById('pDate').value = new Date().toISOString().split('T')[0];
+  }
+})();
+</script>

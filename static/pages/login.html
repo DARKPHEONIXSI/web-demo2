@@ -1,0 +1,36 @@
+<!-- Admin Login Page -->
+<div class="admin-layout" style="justify-content:center; align-items:center; background:var(--admin-bg);">
+  <div class="soft-panel-white" style="width:100%; max-width:420px; padding:3rem 2.5rem; border-radius:var(--admin-radius-md); box-shadow:var(--soft-shadow);">
+    <div style="text-align:center; margin-bottom:2rem;">
+      <span class="material-symbols-outlined" style="font-size:2.5rem; color:var(--admin-accent-blue);">admin_panel_settings</span>
+      <h1 style="font-size:1.8rem; color:var(--admin-text-primary); margin-top:0.75rem;">Admin Access</h1>
+      <p style="color:var(--admin-text-secondary); font-size:0.85rem; margin-top:0.5rem;">Secure portal for coaches &amp; staff</p>
+    </div>
+    
+    <div id="adminErr"></div>
+    <div class="form-group" style="margin-bottom:1.25rem;">
+      <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--admin-text-secondary); margin-bottom:0.5rem;">Username</label>
+      <input id="adminEmail" type="text" value="sir" style="width:100%; padding:0.8rem 1rem; border:none; border-radius:var(--admin-radius-sm); background:var(--admin-bg); box-shadow:var(--soft-shadow-inset); font-size:0.95rem; color:var(--admin-text-primary); outline:none; box-sizing:border-box;">
+    </div>
+    <div class="form-group" style="margin-bottom:1.5rem;">
+      <label style="display:block; font-size:0.85rem; font-weight:600; color:var(--admin-text-secondary); margin-bottom:0.5rem;">Password</label>
+      <input id="adminPwd" type="password" value="sir@1234" style="width:100%; padding:0.8rem 1rem; border:none; border-radius:var(--admin-radius-sm); background:var(--admin-bg); box-shadow:var(--soft-shadow-inset); font-size:0.95rem; color:var(--admin-text-primary); outline:none; box-sizing:border-box;">
+    </div>
+    <button class="soft-btn" style="width:100%; justify-content:center; padding:0.9rem; font-size:1rem;" onclick="adminLogin()">Login to Dashboard</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  window.adminLogin = function() {
+    const email = document.getElementById('adminEmail').value;
+    const pwd = document.getElementById('adminPwd').value;
+    if(email === 'sir' && pwd === 'sir@1234') {
+      showToast('Login successful');
+      navigateTo('admin/dashboard');
+    } else {
+      document.getElementById('adminErr').innerHTML = '<div class="alert alert-error">Invalid credentials.</div>';
+    }
+  };
+})();
+</script>

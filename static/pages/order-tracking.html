@@ -1,0 +1,68 @@
+<!-- Order Tracking Page -->
+<section class="section">
+  <div class="container" style="max-width:700px;">
+    <a href="#/profile" class="btn-ghost" style="padding:0; margin-bottom:1.5rem; display:inline-block;">← Back to Profile</a>
+    <div id="trackingContent"></div>
+  </div>
+</section>
+
+<script>
+(function() {
+  const token = window.__routeParam || 'abc123';
+  const order = ORDERS.find(o => o.token === token) || ORDERS[0];
+
+  document.getElementById('trackingContent').innerHTML = `
+    <div class="glass-card reveal">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <h1 style="font-family:var(--font-display); font-size:1.8rem;">${order.id}</h1>
+          <p style="color:var(--text-muted); font-size:0.85rem;">Placed on ${new Date(order.date).toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'})}</p>
+        </div>
+        <span class="badge ${order.status === 'Delivered' ? 'badge-success' : order.status === 'Shipped' ? 'badge-info' : 'badge-warning'}" style="font-size:0.85rem; padding:0.4rem 1rem;">
+          ${order.status}
+        </span>
+      </div>
+
+      <h3 style="font-family:var(--font-display); font-size:1.2rem; margin-bottom:1rem;">Order Timeline</h3>
+      <div class="order-timeline">
+        ${order.timeline.map(step => `
+          <div class="timeline-step ${step.done ? 'done' : ''}">
+            <div class="timeline-dot">${step.done ? '✓' : ''}</div>
+            <div class="timeline-content">
+              <strong>${step.status}</strong>
+              <span>${step.date || 'Pending'}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      ${order.tracking ? `
+        <div style="margin-top:2rem; padding:1rem; background:var(--gradient-frost); border-radius:var(--radius-md);">
+          <div style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em;">Tracking Number</div>
+          <div style="font-weight:600; color:var(--accent-ice); font-size:1rem;">${order.tracking}</div>
+        </div>
+      ` : ''}
+
+      <h3 style="font-family:var(--font-display); font-size:1.2rem; margin:2rem 0 1rem;">Items Ordered</h3>
+      ${order.items.map(item => `
+        <div style="display:flex; justify-content:space-between; padding:0.75rem 0; border-bottom:1px solid var(--border-subtle);">
+          <span>${item.name} × ${item.qty}</span>
+          <span style="color:var(--accent-ice); font-weight:600;">₹${(item.price * item.qty).toLocaleString()}</span>
+        </div>
+      `).join('')}
+
+      <div style="margin-top:1rem;">
+        <div class="cart-summary-row"><span>Subtotal</span><span>₹${order.subtotal.toLocaleString()}</span></div>
+        <div class="cart-summary-row"><span>Shipping</span><span>${order.shipping === 0 ? 'FREE' : '₹' + order.shipping}</span></div>
+        <div class="cart-summary-row"><span>Tax</span><span>₹${order.tax.toLocaleString()}</span></div>
+        <div class="cart-total-row"><span>Total</span><span>₹${order.total.toLocaleString()}</span></div>
+      </div>
+
+      <div style="display:flex; gap:1rem; margin-top:2rem; flex-wrap:wrap;">
+        <a href="#/invoice/${order.token}" class="btn-secondary">View Invoice</a>
+        ${order.status === 'Delivered' ? `<a href="#/return/${order.token}" class="btn-outline">Request Return</a>` : ''}
+      </div>
+    </div>
+  `;
+})();
+</script>

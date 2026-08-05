@@ -1,0 +1,83 @@
+<!-- Return Request Page -->
+<section class="section">
+  <div class="container" style="max-width:700px;">
+    <a href="#/profile" class="btn-ghost" style="padding:0; margin-bottom:1.5rem; display:inline-block;">← Back to Profile</a>
+    
+    <div class="glass-card reveal">
+      <h1 style="font-family:var(--font-display); font-size:2rem; margin-bottom:1rem;">Request Return</h1>
+      <p style="color:var(--text-secondary); margin-bottom:2rem;">Please fill out the details below for Order <strong id="returnOrderId"></strong>. Note that only unused items in their original packaging can be returned within 30 days of delivery.</p>
+
+      <div id="returnFormWrap">
+        <div class="form-group">
+          <label class="form-label">Select Items to Return *</label>
+          <div id="returnItemsList" style="display:flex; flex-direction:column; gap:0.5rem;">
+            <!-- Populated by script -->
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:1.5rem;">
+          <label class="form-label">Reason for Return *</label>
+          <select class="form-select" id="returnReason">
+            <option value="">Select a reason...</option>
+            <option value="wrong_size">Wrong Size / Didn't Fit</option>
+            <option value="defective">Item was Defective / Damaged</option>
+            <option value="not_as_described">Item not as described</option>
+            <option value="changed_mind">Changed my mind</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Additional Details</label>
+          <textarea class="form-textarea" id="returnNotes" placeholder="Please provide any other relevant details..."></textarea>
+        </div>
+
+        <button class="btn-primary" onclick="submitReturn()" style="margin-top:1rem;">Submit Return Request</button>
+      </div>
+
+      <div id="returnSuccess" style="display:none; text-align:center; padding:2rem 0;">
+        <div style="font-size:3rem; color:var(--accent-success); margin-bottom:1rem;">✓</div>
+        <h2 style="font-family:var(--font-display); font-size:1.5rem; margin-bottom:0.5rem;">Return Requested</h2>
+        <p style="color:var(--text-secondary);">Your request has been submitted. You will receive an email with return shipping instructions shortly.</p>
+        <a href="#/profile" class="btn-secondary" style="margin-top:1.5rem;">Back to Profile</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  const token = window.__routeParam || 'abc123';
+  const order = ORDERS.find(o => o.token === token) || ORDERS[0];
+
+  document.getElementById('returnOrderId').textContent = order.id;
+
+  document.getElementById('returnItemsList').innerHTML = order.items.map((item, i) => `
+    <label style="display:flex; gap:1rem; align-items:center; padding:0.75rem; border:1px solid var(--border-subtle); border-radius:var(--radius-sm); cursor:pointer;">
+      <input type="checkbox" name="returnItem" value="${i}">
+      <img src="/static/${item.image || "assets/images/pro_ice.png'}" style="width:40px; height:40px; border-radius:var(--radius-sm); object-fit:cover;">
+      <div>
+        <div style="font-weight:500;">${item.name}</div>
+        <div style="font-size:0.8rem; color:var(--text-muted);">Qty: ${item.qty}</div>
+      </div>
+    </label>
+  `).join('');
+
+  window.submitReturn = function() {
+    const selected = document.querySelectorAll('input[name="returnItem"]:checked');
+    const reason = document.getElementById('returnReason').value;
+
+    if (selected.length === 0) {
+      showToast('Please select at least one item to return.', 'error');
+      return;
+    }
+    if (!reason) {
+      showToast('Please select a reason for the return.', 'error');
+      return;
+    }
+
+    document.getElementById('returnFormWrap').style.display = 'none';
+    document.getElementById('returnSuccess').style.display = 'block';
+    showToast('Return request submitted.');
+  };
+})();
+</script>

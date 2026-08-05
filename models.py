@@ -3,12 +3,13 @@ models.py — Database helpers for the On Ice skating blog.
 Uses SQLite locally or Postgres via DATABASE_URL.
 """
 
+import json
 import os
+import re
 import secrets
 import sqlite3
-import json
-import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from operator import attrgetter
 
 import jwt
 from flask import current_app, g
@@ -19,6 +20,11 @@ try:
 except ImportError:
     psycopg = None
     dict_row = None
+
+sqlite3.register_adapter(datetime, lambda value: value.isoformat(" "))
+sqlite3.register_converter(
+    "timestamp", lambda value: datetime.fromisoformat(value.decode("utf-8"))
+)
 
 # ── Connection management ────────────────────────────────────
 
@@ -53,7 +59,7 @@ class PgCursor:
     @staticmethod
     def _translate_query(query: str) -> str:
         return (
-            query.replace("datetime(\"now\")", "CURRENT_TIMESTAMP")
+            query.replace('datetime("now")', "CURRENT_TIMESTAMP")
             .replace("datetime('now')", "CURRENT_TIMESTAMP")
             .replace("?", "%s")
         )
@@ -87,11 +93,13 @@ def get_db():
         if database_url:
             if psycopg is None:
                 raise RuntimeError("psycopg is required for Postgres DATABASE_URL")
-            conn = psycopg.connect(database_url, row_factory=dict_row)
+            connect = attrgetter("connect")(psycopg)
+            conn = connect(database_url, row_factory=dict_row)
             g.db = PgConnection(conn)
         else:
             conn = sqlite3.connect(
-                current_app.config["DATABASE_PATH"], detect_types=sqlite3.PARSE_DECLTYPES
+                current_app.config["DATABASE_PATH"],
+                detect_types=sqlite3.PARSE_DECLTYPES,
             )
             conn.row_factory = sqlite3.Row
             g.db = conn
@@ -140,36 +148,61 @@ def ensure_runtime_schema():
     }
     if using_postgres():
         try:
-            db.execute("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_id TEXT NOT NULL DEFAULT ''")
+            db.execute(
+                "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS product_id TEXT NOT NULL DEFAULT ''"
+            )
             for name, definition in post_columns.items():
-                db.execute(f"ALTER TABLE posts ADD COLUMN IF NOT EXISTS {name} {definition}")
+                db.execute(
+                    f"ALTER TABLE posts ADD COLUMN IF NOT EXISTS {name} {definition}"
+                )
             for name, definition in product_columns.items():
                 pg_definition = definition.replace("REAL", "NUMERIC(12,2)")
-                db.execute(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {name} {pg_definition}")
+                db.execute(
+                    f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {name} {pg_definition}"
+                )
             for name, definition in order_columns.items():
                 pg_definition = definition.replace("REAL", "NUMERIC(12,2)")
-                db.execute(f"ALTER TABLE orders ADD COLUMN IF NOT EXISTS {name} {pg_definition}")
+                db.execute(
+                    f"ALTER TABLE orders ADD COLUMN IF NOT EXISTS {name} {pg_definition}"
+                )
             for name, definition in custom_page_columns.items():
-                db.execute(f"ALTER TABLE custom_pages ADD COLUMN IF NOT EXISTS {name} {definition}")
+                db.execute(
+                    f"ALTER TABLE custom_pages ADD COLUMN IF NOT EXISTS {name} {definition}"
+                )
             create_feature_tables(db, postgres=True)
-            for row in db.execute("SELECT id, title FROM posts WHERE slug='' OR slug IS NULL").fetchall():
-                db.execute("UPDATE posts SET slug=? WHERE id=?", (unique_slug("posts", row["title"], row["id"]), row["id"]))
-            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)")
-            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''")
+            for row in db.execute(
+                "SELECT id, title FROM posts WHERE slug='' OR slug IS NULL"
+            ).fetchall():
+                db.execute(
+                    "UPDATE posts SET slug=? WHERE id=?",
+                    (unique_slug("posts", row["title"], row["id"]), row["id"]),
+                )
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)"
+            )
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''"
+            )
             db.commit()
         except Exception:
             db.rollback()
     else:
+
         def table_exists(table: str) -> bool:
-            return db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-                (table,),
-            ).fetchone() is not None
+            return (
+                db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                    (table,),
+                ).fetchone()
+                is not None
+            )
 
         def add_missing_columns(table: str, columns: dict[str, str]):
             if not table_exists(table):
                 return
-            existing = [r[1] for r in db.execute(f"PRAGMA table_info({table})").fetchall()]
+            existing = [
+                r[1] for r in db.execute(f"PRAGMA table_info({table})").fetchall()
+            ]
             if not existing:
                 return
             for name, definition in columns.items():
@@ -177,40 +210,52 @@ def ensure_runtime_schema():
                     db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
 
         if table_exists("order_items"):
-            order_item_cols = [r[1] for r in db.execute("PRAGMA table_info(order_items)").fetchall()]
+            order_item_cols = [
+                r[1] for r in db.execute("PRAGMA table_info(order_items)").fetchall()
+            ]
             if order_item_cols and "product_id" not in order_item_cols:
-                db.execute("ALTER TABLE order_items ADD COLUMN product_id TEXT NOT NULL DEFAULT ''")
+                db.execute(
+                    "ALTER TABLE order_items ADD COLUMN product_id TEXT NOT NULL DEFAULT ''"
+                )
         add_missing_columns("posts", post_columns)
         add_missing_columns("products", product_columns)
         add_missing_columns("orders", order_columns)
         add_missing_columns("custom_pages", custom_page_columns)
         create_feature_tables(db, postgres=False)
         if table_exists("posts"):
-            for row in db.execute("SELECT id, title FROM posts WHERE slug='' OR slug IS NULL").fetchall():
-                db.execute("UPDATE posts SET slug=? WHERE id=?", (unique_slug("posts", row["title"], row["id"]), row["id"]))
-            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)")
+            for row in db.execute(
+                "SELECT id, title FROM posts WHERE slug='' OR slug IS NULL"
+            ).fetchall():
+                db.execute(
+                    "UPDATE posts SET slug=? WHERE id=?",
+                    (unique_slug("posts", row["title"], row["id"]), row["id"]),
+                )
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)"
+            )
         if table_exists("products"):
-            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''")
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_products_sku ON products(sku) WHERE sku <> ''"
+            )
 
-    db.execute(
-        """CREATE TABLE IF NOT EXISTS audit_logs (
+    db.execute("""CREATE TABLE IF NOT EXISTS audit_logs (
              id TEXT NOT NULL PRIMARY KEY,
              event_type TEXT NOT NULL,
              actor_id TEXT DEFAULT NULL,
              ip_address TEXT DEFAULT NULL,
              detail TEXT NOT NULL DEFAULT '',
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
-    )
+           )""")
     db.commit()
 
 
 def create_feature_tables(db, postgres: bool = False):
     """Create optional feature tables used by blog/shop production features."""
-    id_type = "BIGSERIAL PRIMARY KEY" if postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    id_type = (
+        "BIGSERIAL PRIMARY KEY" if postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    )
     money = "NUMERIC(12,2)" if postgres else "REAL"
-    db.execute(
-        f"""CREATE TABLE IF NOT EXISTS post_comments (
+    db.execute(f"""CREATE TABLE IF NOT EXISTS post_comments (
              id {id_type},
              post_id TEXT NOT NULL,
              user_id TEXT DEFAULT NULL,
@@ -218,10 +263,8 @@ def create_feature_tables(db, postgres: bool = False):
              body TEXT NOT NULL,
              status TEXT NOT NULL DEFAULT 'approved',
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
-    )
-    db.execute(
-        f"""CREATE TABLE IF NOT EXISTS product_reviews (
+           )""")
+    db.execute(f"""CREATE TABLE IF NOT EXISTS product_reviews (
              id {id_type},
              product_id TEXT NOT NULL,
              user_id TEXT DEFAULT NULL,
@@ -230,59 +273,56 @@ def create_feature_tables(db, postgres: bool = False):
              body TEXT NOT NULL DEFAULT '',
              status TEXT NOT NULL DEFAULT 'approved',
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
-    )
-    db.execute(
-        """CREATE TABLE IF NOT EXISTS wishlist_items (
+           )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS wishlist_items (
              user_id TEXT NOT NULL,
              product_id TEXT NOT NULL,
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
              PRIMARY KEY (user_id, product_id)
-           )"""
-    )
-    db.execute(
-        f"""CREATE TABLE IF NOT EXISTS coupons (
+           )""")
+    db.execute(f"""CREATE TABLE IF NOT EXISTS coupons (
              code TEXT NOT NULL PRIMARY KEY,
              discount_type TEXT NOT NULL DEFAULT 'percent',
              discount_value {money} NOT NULL DEFAULT 0,
              active INTEGER NOT NULL DEFAULT 1,
              expires_at TEXT DEFAULT NULL,
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
-    )
-    db.execute(
-        f"""CREATE TABLE IF NOT EXISTS return_requests (
+           )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS return_requests (
              id TEXT NOT NULL PRIMARY KEY,
              order_id TEXT NOT NULL,
              user_id TEXT DEFAULT NULL,
              reason TEXT NOT NULL,
              status TEXT NOT NULL DEFAULT 'requested',
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
-    )
-    db.execute(
-        """CREATE TABLE IF NOT EXISTS cart_items (
+           )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS cart_items (
              user_id TEXT NOT NULL,
              product_id TEXT NOT NULL,
              variant_id TEXT NOT NULL DEFAULT '',
              quantity INTEGER NOT NULL DEFAULT 1,
              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
              PRIMARY KEY (user_id, product_id, variant_id)
-           )"""
-    )
-    db.execute(
-        f"""CREATE TABLE IF NOT EXISTS analytics_events (
+           )""")
+    db.execute(f"""CREATE TABLE IF NOT EXISTS analytics_events (
              id {id_type},
              event_type TEXT NOT NULL,
              object_id TEXT NOT NULL DEFAULT '',
              user_id TEXT DEFAULT NULL,
              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-           )"""
+           )""")
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)"
     )
-    db.execute("CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_product_reviews_product_id ON product_reviews(product_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_return_requests_order_id ON return_requests(order_id)")
-    db.execute("CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type, created_at)")
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_product_reviews_product_id ON product_reviews(product_id)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_return_requests_order_id ON return_requests(order_id)"
+    )
+    db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_analytics_events_type ON analytics_events(event_type, created_at)"
+    )
 
 
 def slugify(value: str) -> str:
@@ -321,6 +361,8 @@ def init_db():
             if statement:
                 db.execute(statement)
     else:
+        if not isinstance(db, sqlite3.Connection):
+            raise RuntimeError("SQLite schema initialization requires SQLite")
         db.executescript(sql)
     db.commit()
 
@@ -387,15 +429,14 @@ def fmt_date(d) -> str:
 
 def create_access_token(user_id: str, role: str) -> tuple[str, datetime]:
     """Create a JWT access token. Returns (token, expires_at)."""
-    expires = datetime.utcnow() + timedelta(
-        seconds=current_app.config["JWT_ACCESS_TOKEN_EXPIRES"]
-    )
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires = now + timedelta(seconds=current_app.config["JWT_ACCESS_TOKEN_EXPIRES"])
     payload = {
         "sub": user_id,
         "role": role,
         "exp": expires,
         "type": "access",
-        "iat": datetime.utcnow(),
+        "iat": now,
     }
     token = jwt.encode(
         payload,
@@ -407,14 +448,13 @@ def create_access_token(user_id: str, role: str) -> tuple[str, datetime]:
 
 def create_refresh_token(user_id: str) -> tuple[str, datetime]:
     """Create a JWT refresh token. Returns (token, expires_at)."""
-    expires = datetime.utcnow() + timedelta(
-        seconds=current_app.config["JWT_REFRESH_TOKEN_EXPIRES"]
-    )
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires = now + timedelta(seconds=current_app.config["JWT_REFRESH_TOKEN_EXPIRES"])
     payload = {
         "sub": user_id,
         "exp": expires,
         "type": "refresh",
-        "iat": datetime.utcnow(),
+        "iat": now,
     }
     token = jwt.encode(
         payload,
@@ -497,13 +537,24 @@ def ensure_builtin_admin_user():
     db.commit()
 
 
-def log_audit(event_type: str, actor_id: str | None = None, ip_address: str | None = None, **detail):
+def log_audit(
+    event_type: str,
+    actor_id: str | None = None,
+    ip_address: str | None = None,
+    **detail,
+):
     """Persist a structured audit event without interrupting the request."""
     try:
         db = get_db()
         db.execute(
             "INSERT INTO audit_logs (id, event_type, actor_id, ip_address, detail) VALUES (?, ?, ?, ?, ?)",
-            (gen_id(), event_type, actor_id, ip_address, json.dumps(detail, sort_keys=True)),
+            (
+                gen_id(),
+                event_type,
+                actor_id,
+                ip_address,
+                json.dumps(detail, sort_keys=True),
+            ),
         )
         db.commit()
     except Exception:
@@ -576,11 +627,14 @@ def count_posts(published_only: bool = True, search: str = "") -> int:
             query = (
                 "SELECT COUNT(*) FROM posts " "WHERE (title LIKE ? OR excerpt LIKE ?)"
             )
-        return db.execute(query, (like, like)).fetchone()[0]
+        count_row = db.execute(query, (like, like)).fetchone()
+        return count_row[0] if count_row else 0
 
     # No search
     if published_only:
-        return db.execute(
+        count_row = db.execute(
             "SELECT COUNT(*) FROM posts WHERE status='published'"
-        ).fetchone()[0]
-    return db.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
+        ).fetchone()
+        return count_row[0] if count_row else 0
+    count_row = db.execute("SELECT COUNT(*) FROM posts").fetchone()
+    return count_row[0] if count_row else 0

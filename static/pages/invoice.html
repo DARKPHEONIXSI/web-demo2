@@ -1,0 +1,76 @@
+<!-- Invoice Page -->
+<section class="section">
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+      <a href="#/profile" class="btn-ghost" style="padding:0;">← Back to Profile</a>
+      <button class="btn-secondary" onclick="window.print()">🖨 Print Invoice</button>
+    </div>
+    <div class="glass-card invoice-card" id="invoiceContent"></div>
+  </div>
+</section>
+
+<script>
+(function() {
+  const token = window.__routeParam || 'abc123';
+  const order = ORDERS.find(o => o.token === token) || ORDERS[0];
+
+  document.getElementById('invoiceContent').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3rem;">
+      <div>
+        <h1 style="font-family:var(--font-display); font-size:2rem; color:var(--accent-ice);">❄ On Ice</h1>
+        <p style="color:var(--text-muted); font-size:0.85rem;">Figure Skating Journal & Shop</p>
+      </div>
+      <div style="text-align:right;">
+        <h2 style="font-family:var(--font-display); font-size:1.5rem;">INVOICE</h2>
+        <p style="color:var(--text-muted); font-size:0.85rem;">${order.id}</p>
+        <p style="color:var(--text-muted); font-size:0.85rem;">Date: ${new Date(order.date).toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'})}</p>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; margin-bottom:2rem;">
+      <div>
+        <div class="form-label" style="margin-bottom:0.5rem;">Bill To</div>
+        <div style="color:var(--text-primary); font-weight:500;">${order.address.name}</div>
+        <div style="color:var(--text-secondary); font-size:0.85rem;">${order.address.line1}</div>
+        <div style="color:var(--text-secondary); font-size:0.85rem;">${order.address.city}, ${order.address.state} ${order.address.pin}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="form-label" style="margin-bottom:0.5rem;">Status</div>
+        <span class="badge ${order.status === 'Delivered' ? 'badge-success' : 'badge-info'}">${order.status}</span>
+      </div>
+    </div>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th style="text-align:center;">Qty</th>
+          <th style="text-align:right;">Price</th>
+          <th style="text-align:right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${order.items.map(item => `
+          <tr>
+            <td>${item.name}</td>
+            <td style="text-align:center;">${item.qty}</td>
+            <td style="text-align:right;">₹${item.price.toLocaleString()}</td>
+            <td style="text-align:right;">₹${(item.price * item.qty).toLocaleString()}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div style="max-width:300px; margin-left:auto; margin-top:2rem;">
+      <div class="cart-summary-row"><span>Subtotal</span><span>₹${order.subtotal.toLocaleString()}</span></div>
+      <div class="cart-summary-row"><span>Shipping</span><span>${order.shipping === 0 ? 'FREE' : '₹' + order.shipping}</span></div>
+      <div class="cart-summary-row"><span>Tax (GST 18%)</span><span>₹${order.tax.toLocaleString()}</span></div>
+      <div class="cart-total-row"><span>Total</span><span>₹${order.total.toLocaleString()}</span></div>
+    </div>
+
+    <div style="margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border-subtle); text-align:center; color:var(--text-muted); font-size:0.8rem;">
+      Thank you for your purchase! · On Ice Studio · onice.com
+    </div>
+  `;
+})();
+</script>

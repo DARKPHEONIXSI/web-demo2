@@ -22,6 +22,3 @@ if not app.debug:
     app.logger.addHandler(file_handler)
     app.logger.setLevel(logging.INFO)
     app.logger.info("On Ice startup")
-
-if __name__ == "__main__":
-    app.run()

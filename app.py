@@ -6,8 +6,10 @@ Entry point: python app.py
 import math
 import os
 from datetime import date
+from xml.sax.saxutils import escape as xml_escape
 
 from flask import (
+    abort,
     Flask,
     Response,
     jsonify,
@@ -26,14 +28,15 @@ from admin_bp import admin_bp
 from api import api_bp
 from auth import auth_bp, get_sess, is_admin
 from config import Config, validate_config
+from health_api import health_bp
 from models import (
     close_db,
     count_posts,
+    ensure_runtime_schema,
     fmt_date,
     get_db,
     get_posts,
     get_settings,
-    ensure_runtime_schema,
 )
 
 
@@ -49,6 +52,7 @@ def log_analytics(event_type: str, object_id: str = "", user_id: str = ""):
     except Exception:
         pass
 
+
 csrf = CSRFProtect()
 talisman = Talisman()
 
@@ -56,7 +60,7 @@ talisman = Talisman()
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per minute"],
-    storage_uri="memory://",
+    storage_uri=Config.RATELIMIT_STORAGE_URL,
 )
 
 
@@ -75,7 +79,7 @@ def create_app():
         strict_transport_security_include_subdomains=True,
         content_security_policy={
             "default-src": "'self'",
-            "script-src": "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
+            "script-src": "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://checkout.razorpay.com https://accounts.google.com https://challenges.cloudflare.com",
             "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
             "font-src": "'self' https://fonts.gstatic.com",
             "img-src": "'self' data: https:",
@@ -99,7 +103,11 @@ def create_app():
     # ── Register blueprints ───────────────────────────────────────
     app.register_blueprint(auth_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(health_bp)
     app.register_blueprint(admin_bp)
+
+    if "api.razorpay_webhook" in app.view_functions:
+        csrf.exempt(app.view_functions["api.razorpay_webhook"])
 
     # ── Strict limits for abuse-prone endpoints ───────────────────
     endpoint_limits = {
@@ -114,7 +122,10 @@ def create_app():
     }
     for endpoint, limit in endpoint_limits.items():
         if endpoint in app.view_functions:
-            app.view_functions[endpoint] = limiter.limit(limit)(app.view_functions[endpoint])
+            limited_view = app.ensure_sync(
+                limiter.limit(limit)(app.view_functions[endpoint])
+            )
+            app.view_functions[endpoint] = limited_view
 
     # ── Database lifecycle ────────────────────────────────────────
     app.teardown_appcontext(close_db)
@@ -149,366 +160,106 @@ def create_app():
             mimetype="image/png",
         )
 
-    # ── Public routes ─────────────────────────────────────────────
-
-    @app.route("/")
-    def home():
-        """Home page with blog feed, search, and pagination."""
-        db = get_db()
-        get_settings()
-        per_page = app.config["PER_PAGE"]
-        page_num = max(1, int(request.args.get("page", 1)))
-        q = (request.args.get("q") or "").strip()
-        offset = (page_num - 1) * per_page
-        published_only = not is_admin()
-
-        if q:
-            posts = get_posts(
-                published_only=published_only, search=q, limit=per_page, offset=offset
-            )
-            total_filtered = count_posts(published_only=published_only, search=q)
-        else:
-            posts = get_posts(
-                published_only=published_only, limit=per_page, offset=offset
-            )
-            total_filtered = count_posts(published_only=published_only)
-
-        total_published = db.execute(
-            "SELECT COUNT(*) FROM posts WHERE status='published'"
-        ).fetchone()[0]
-        total_all = db.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
-        total_pages = math.ceil(total_filtered / per_page) if per_page else 1
-        tech_count = db.execute("SELECT COUNT(*) FROM techniques").fetchone()[0]
-
-        return render_template(
-            "index.html",
-            posts=posts,
-            q=q,
-            page_num=page_num,
-            total=total_published,
-            total_all=total_all,
-            total_filtered=total_filtered,
-            total_pages=total_pages,
-            tech_count=tech_count,
-            per_page=per_page,
+# ── SPA catch-all: serve simar-website index.html for all non-API routes ──
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def spa_catch_all(path):
+        """Serve the SPA index.html for all non-API routes.
+        This allows the frontend router to handle client-side navigation.
+        """
+        # Skip API routes - they should be handled by blueprints
+        if path.startswith("api/"):
+            abort(404)
+        # Skip static files
+        if path.startswith("static/"):
+            abort(404)
+        # Skip uploads
+        if path.startswith("uploads/"):
+            abort(404)
+        # Skip favicon
+        if path == "favicon.ico":
+            abort(404)
+        # Skip health check
+        if path.startswith("health"):
+            abort(404)
+        # Skip admin (has its own blueprint)
+        if path.startswith("admin"):
+            abort(404)
+        # Skip auth (has its own blueprint)
+        if path.startswith("auth"):
+            abort(404)
+        
+        # Serve the simar-website index.html
+        return send_from_directory(
+            os.path.join(app.root_path, "static"),
+            "index.html"
         )
 
-    @app.route("/post/<post_id>")
-    def post_detail(post_id):
-        """Single post view."""
-        db = get_db()
-        post = db.execute(
-            "SELECT * FROM posts WHERE id = ? OR slug = ? LIMIT 1", (post_id, post_id)
-        ).fetchone()
-
-        # Non-admins can't see drafts
-        if post and post["status"] == "draft" and not is_admin():
-            return redirect(url_for("home"))
-
-        # Related posts
-        related = []
-        if post:
-            log_analytics("post_view", post["id"], (get_sess() or {}).get("id", ""))
-            status_clause = "" if is_admin() else "AND status='published'"
-            related = db.execute(
-                f"""SELECT id, title, slug, post_date, read_time FROM posts
-                    WHERE id != ? {status_clause} AND (category=? OR tags LIKE ?)
-                    ORDER BY post_date DESC LIMIT 3""",
-                (post["id"], post["category"], f"%{post['category']}%"),
-            ).fetchall()
-            if not related:
-                related = db.execute(
-                    f"SELECT id, title, slug, post_date, read_time FROM posts WHERE id != ? {status_clause} ORDER BY post_date DESC LIMIT 3",
-                    (post["id"],),
-                ).fetchall()
-        comments = []
-        if post:
-            comments = db.execute(
-                "SELECT * FROM post_comments WHERE post_id=? AND status='approved' ORDER BY created_at DESC",
-                (post["id"],),
-            ).fetchall()
-
-        return render_template("post.html", post=post, related=related, comments=comments)
-
-    @app.route("/category/<category>")
-    def category_archive(category):
-        db = get_db()
-        posts = db.execute(
-            "SELECT * FROM posts WHERE status='published' AND lower(category)=lower(?) ORDER BY post_date DESC",
-            (category,),
-        ).fetchall()
-        return render_template("index.html", posts=posts, q="", page_num=1, total=len(posts), total_all=len(posts), total_filtered=len(posts), total_pages=1, tech_count=0, per_page=app.config["PER_PAGE"], archive_title=f"Category: {category}")
-
-    @app.route("/tag/<tag>")
-    def tag_archive(tag):
-        db = get_db()
-        posts = db.execute(
-            "SELECT * FROM posts WHERE status='published' AND tags LIKE ? ORDER BY post_date DESC",
-            (f"%{tag}%",),
-        ).fetchall()
-        return render_template("index.html", posts=posts, q="", page_num=1, total=len(posts), total_all=len(posts), total_filtered=len(posts), total_pages=1, tech_count=0, per_page=app.config["PER_PAGE"], archive_title=f"Tag: {tag}")
-
-    @app.route("/gallery")
-    def gallery():
-        """Gallery page with filtering and lightbox."""
-        db = get_db()
-        try:
-            rows = db.execute(
-                "SELECT * FROM gallery_items ORDER BY sort_order ASC"
-            ).fetchall()
-            items = [dict(row) for row in rows]
-        except Exception:
-            items = []
-
-        tags = sorted({item["tag"] for item in items})
-        return render_template("gallery.html", gallery_items=items, tags=tags)
-
-    @app.route("/techniques")
-    def techniques():
-        """Technique guides page."""
-        db = get_db()
-        techs = db.execute(
-            "SELECT * FROM techniques ORDER BY sort_order ASC"
-        ).fetchall()
-        return render_template("techniques.html", techs=techs)
-
-    @app.route("/contact")
-    def contact():
-        """Contact form page."""
-        return render_template("contact.html")
-
-    @app.route("/about")
-    def about():
-        """About page."""
-        return render_template("about.html")
-
-    @app.route("/profile")
-    def profile():
-        """User profile page."""
-        orders = []
-        sess = get_sess()
-        if sess:
-            db = get_db()
-            orders = db.execute(
-                "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
-                (sess.get("id"),),
-            ).fetchall()
-        return render_template("profile.html", orders=orders)
-
-    @app.route("/shop")
-    def shop():
-        """Dedicated shop page for coach's skates."""
-        db = get_db()
-        q = (request.args.get("q") or "").strip()
-        sort = request.args.get("sort") or "newest"
-        category = (request.args.get("category") or "").strip()
-        categories = [r[0] for r in db.execute(
-            "SELECT DISTINCT category FROM products WHERE status='active' AND category <> '' ORDER BY category"
-        ).fetchall()]
-        where = ["status='active'"]
-        params = []
-        if q:
-            where.append("(name LIKE ? OR description LIKE ? OR sku LIKE ?)")
-            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
-        if category:
-            where.append("category=?")
-            params.append(category)
-        order_by = "created_at DESC"
-        if sort == "price_asc":
-            order_by = "COALESCE(sale_price, base_price) ASC"
-        elif sort == "price_desc":
-            order_by = "COALESCE(sale_price, base_price) DESC"
-        products = db.execute(
-            f"SELECT * FROM products WHERE {' AND '.join(where)} ORDER BY {order_by}",
-            params,
-        ).fetchall()
-        prod_data = []
-        for p in products:
-            img = db.execute(
-                "SELECT image_url FROM product_images WHERE product_id=? ORDER BY sort_order ASC LIMIT 1",
-                (p["id"],),
-            ).fetchone()
-            p_dict = dict(p)
-            p_dict["image"] = (
-                img["image_url"]
-                if img
-                else url_for("static", filename="images/pro_ice.png")
-            )
-            prod_data.append(p_dict)
-        return render_template("shop.html", products=prod_data, categories=categories, q=q, sort=sort, selected_category=category)
-
-    @app.route("/shop/category/<category>")
-    def shop_category(category):
-        return redirect(url_for("shop", category=category))
-
-    @app.route("/shop/<product_id>")
-    def product(product_id):
-        """Single product details with variants."""
-        db = get_db()
-        product = db.execute(
-            "SELECT * FROM products WHERE id=? AND status='active'", (product_id,)
-        ).fetchone()
-        if not product:
-            return redirect(url_for("shop"))
-        log_analytics("product_view", product["id"], (get_sess() or {}).get("id", ""))
-        variants = db.execute(
-            "SELECT * FROM product_variants WHERE product_id=?", (product_id,)
-        ).fetchall()
-        images = db.execute(
-            "SELECT * FROM product_images WHERE product_id=? ORDER BY sort_order",
-            (product_id,),
-        ).fetchall()
-        variants_list = [dict(v) for v in variants]
-        reviews = db.execute(
-            "SELECT * FROM product_reviews WHERE product_id=? AND status='approved' ORDER BY created_at DESC",
-            (product_id,),
-        ).fetchall()
-        return render_template(
-            "product.html", product=product, variants=variants_list, images=images, reviews=reviews
-        )
-
-    @app.route("/checkout")
-    def checkout():
-        """Simulated payment gateway."""
-        return render_template("checkout.html")
-
-    @app.route("/order-success", methods=["GET", "POST"])
-    def order_success():
-        """Order confirmation page."""
-        order = None
-        token = request.args.get("token", "")
-        if token:
-            order = get_db().execute(
-                "SELECT * FROM orders WHERE order_token=? LIMIT 1", (token,)
-            ).fetchone()
-        return render_template("success.html", order=order)
-
-    @app.route("/order/<order_token>")
-    def order_tracking(order_token):
-        """Public order tracking by private order token."""
-        db = get_db()
-        order = db.execute(
-            "SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)
-        ).fetchone()
-        items = []
-        if order:
-            items = db.execute(
-                """SELECT oi.*, p.name AS product_name, pv.color, pv.size
-                   FROM order_items oi
-                   LEFT JOIN products p ON p.id = oi.product_id
-                   LEFT JOIN product_variants pv ON pv.id = oi.product_variant_id
-                   WHERE oi.order_id=?""",
-                (order["id"],),
-            ).fetchall()
-        return render_template("order_tracking.html", order=order, items=items)
-
-    @app.route("/invoice/<order_token>")
-    def invoice(order_token):
-        db = get_db()
-        order = db.execute("SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)).fetchone()
-        items = []
-        if order:
-            items = db.execute(
-                """SELECT oi.*, p.name AS product_name FROM order_items oi
-                   LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id=?""",
-                (order["id"],),
-            ).fetchall()
-        return render_template("invoice.html", order=order, items=items)
-
-    @app.route("/returns/<order_token>")
-    def returns(order_token):
-        order = get_db().execute("SELECT * FROM orders WHERE order_token=? LIMIT 1", (order_token,)).fetchone()
-        return render_template("return_request.html", order=order)
-
-    @app.route("/payment-failed")
-    def payment_failed():
-        return render_template("payment_failed.html")
-
-    @app.route("/privacy")
-    def privacy():
-        return render_template("legal.html", title="Privacy Policy", body="We collect account, order, and contact information only to run the shop, fulfill orders, and provide support.")
-
-    @app.route("/terms")
-    def terms():
-        return render_template("legal.html", title="Terms of Service", body="By using this website, you agree to provide accurate order details and use the content and shop responsibly.")
-
-    @app.route("/shipping-returns")
-    def shipping_returns():
-        return render_template("legal.html", title="Shipping & Returns", body="Shipping timelines depend on destination and stock. Return requests can be submitted from your order tracking page.")
-
-    @app.route("/refund-policy")
-    def refund_policy():
-        return render_template("legal.html", title="Refund Policy", body="Refunds are reviewed after a return or cancellation request. Approved refunds are processed back to the original payment method.")
-
-    @app.route("/robots.txt")
-    def robots():
-        return Response("User-agent: *\nAllow: /\nSitemap: " + url_for("sitemap", _external=True) + "\n", mimetype="text/plain")
-
-    @app.route("/sitemap.xml")
-    def sitemap():
-        db = get_db()
-        urls = [url_for("home", _external=True), url_for("shop", _external=True), url_for("about", _external=True), url_for("contact", _external=True)]
-        urls += [url_for("post_detail", post_id=(r["slug"] or r["id"]), _external=True) for r in db.execute("SELECT id, slug FROM posts WHERE status='published'").fetchall()]
-        urls += [url_for("product", product_id=r["id"], _external=True) for r in db.execute("SELECT id FROM products WHERE status='active'").fetchall()]
-        body = "<?xml version='1.0' encoding='UTF-8'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>" + "".join(f"<url><loc>{u}</loc></url>" for u in urls) + "</urlset>"
-        return Response(body, mimetype="application/xml")
-
-    @app.route("/feed.xml")
-    def rss_feed():
-        db = get_db()
-        posts = db.execute("SELECT * FROM posts WHERE status='published' ORDER BY post_date DESC LIMIT 20").fetchall()
-        items = "".join(
-            f"<item><title>{p['title']}</title><link>{url_for('post_detail', post_id=(p['slug'] or p['id']), _external=True)}</link><description>{p['excerpt']}</description></item>"
-            for p in posts
-        )
-        body = f"<?xml version='1.0'?><rss version='2.0'><channel><title>{get_settings().get('blog_name','On Ice')}</title><link>{url_for('home', _external=True)}</link>{items}</channel></rss>"
-        return Response(body, mimetype="application/rss+xml")
-
-    @app.route("/rules")
-    def rules():
-        """ISU Rules & Testing Center."""
-        return render_template("isu_rules.html")
-
-    @app.route("/page/<page_id>")
-    def custom_page(page_id):
-        """Custom page view."""
-        db = get_db()
-        pg = db.execute(
-            "SELECT * FROM custom_pages WHERE id = ? LIMIT 1", (page_id,)
-        ).fetchone()
-        return render_template("page.html", pg=pg)
-
-    # ── Custom pages for nav (context processor) ──────────────────
-    @app.context_processor
-    def inject_nav_pages():
-        """Make custom pages available to nav template."""
-        db = get_db()
-        try:
-            nav_pages = db.execute(
-                "SELECT id, name, slug FROM custom_pages ORDER BY created_at ASC LIMIT 5"
-            ).fetchall()
-        except Exception:
-            nav_pages = []
-        return {"nav_pages": nav_pages}
+    # ── Original Flask routes DISABLED — SPA handles all frontend routing ──
+    # @app.route("/")
+    # def home(): ...
+    # @app.route("/post/<post_id>")
+    # def post_detail(post_id): ...
+    # @app.route("/category/<category>")
+    # def category_archive(category): ...
+    # @app.route("/tag/<tag>")
+    # def tag_archive(tag): ...
+    # @app.route("/gallery")
+    # def gallery(): ...
+    # @app.route("/techniques")
+    # def techniques(): ...
+    # @app.route("/contact")
+    # def contact(): ...
+    # @app.route("/about")
+    # def about(): ...
+    # @app.route("/profile")
+    # def profile(): ...
+    # @app.route("/shop")
+    # def shop(): ...
+    # @app.route("/shop/category/<category>")
+    # def shop_category(category): ...
+    # @app.route("/shop/<product_id>")
+    # def product(product_id): ...
+    # @app.route("/checkout")
+    # def checkout(): ...
+    # @app.route("/order-success", methods=["GET", "POST"])
+    # def order_success(): ...
+    # @app.route("/order/<order_token>")
+    # def order_tracking(order_token): ...
+    # @app.route("/invoice/<order_token>")
+    # def invoice(order_token): ...
+    # @app.route("/returns/<order_token>")
+    # def returns(order_token): ...
+    # @app.route("/payment-failed")
+    # def payment_failed(): ...
+    # @app.route("/privacy")
+    # def privacy(): ...
+    # @app.route("/terms")
+    # def terms(): ...
+    # @app.route("/shipping-returns")
+    # def shipping_returns(): ...
+    # @app.route("/refund-policy")
+    # def refund_policy(): ...
+    # @app.route("/robots.txt")
+    # def robots(): ...
+    # @app.route("/sitemap.xml")
+    # def sitemap(): ...
+    # @app.route("/feed.xml")
+    # def rss_feed(): ...
+    # @app.route("/rules")
+    # def rules(): ...
+    # @app.route("/page/<page_id>")
+    # def custom_page(page_id): ...
+    #
+    # All frontend routes now served by SPA catch-all above
+    # Data accessed via /api/* endpoints
 
     # ── Error handlers ────────────────────────────────────────────
     @app.errorhandler(404)
     def not_found(e):
-        return (
-            render_template(
-                "index.html",
-                posts=[],
-                q="",
-                page_num=1,
-                total=0,
-                total_all=0,
-                total_filtered=0,
-                total_pages=0,
-                tech_count=0,
-                per_page=9,
-            ),
-            404,
-        )
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "msg": "API endpoint not found", "code": "NOT_FOUND"}), 404
+        return send_from_directory(os.path.join(app.root_path, "static"), "index.html"), 404
 
     @app.errorhandler(429)
     def ratelimit_handler(e):
@@ -526,21 +277,10 @@ def create_app():
     return app
 
 
-# ── Entry point ──────────────────────────────────────────────────
-
-app = create_app()
-
 if __name__ == "__main__":
-    import socket
-
-    # Discover LAN IP so mobile devices know the address to use
-    try:
-        lan_ip = socket.gethostbyname(socket.gethostname())
-    except Exception:
-        lan_ip = "(could not detect)"
-    print("\n  ⛸  On Ice — Aurora Frost Edition")
-    print("  ─────────────────────────────────")
-    print("  Local  : http://localhost:5000")
-    print(f"  Network: http://{lan_ip}:5000  ← open this on your phone")
-    print("  (phone must be on the same WiFi)\n")
-    app.run(debug=os.getenv("FLASK_ENV") != "production", host="0.0.0.0", port=5000)
+    local_app = create_app()
+    local_app.run(
+        debug=os.getenv("FLASK_DEBUG") == "1",
+        host=os.getenv("FLASK_RUN_HOST", "127.0.0.1"),
+        port=5000,
+    )

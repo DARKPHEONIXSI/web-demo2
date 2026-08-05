@@ -1,0 +1,44 @@
+<!-- Techniques Page -->
+<section class="section">
+  <div class="container" style="max-width:900px;">
+    <div class="page-hero reveal">
+      <div class="section-label">Technique Library</div>
+      <h1 class="section-title">Master every element.</h1>
+      <p class="section-subtitle">Expandable breakdowns for turns, jumps, spins, edges, and off-ice conditioning. Click any item to see details.</p>
+    </div>
+
+    <img src="/static/assets/images/techniques_skating.png" alt="Skating technique drill" class="reveal" style="width:100%; border-radius:var(--radius-xl); margin-bottom:3rem; box-shadow:var(--shadow-lg);">
+
+    <div id="techniqueList">
+      <!-- Populated by script -->
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  const container = document.getElementById('techniqueList');
+  container.innerHTML = TECHNIQUES.map(cat => `
+    <div class="technique-group reveal">
+      <h2 class="technique-group-title">
+        <span class="material-symbols-outlined" style="font-size:1.2rem; vertical-align:middle; margin-right:0.5rem; color:var(--accent-ice);">
+          ${cat.category === 'Edges & Turns' ? 'rotate_right' : cat.category === 'Jumps' ? 'flight' : cat.category === 'Spins' ? 'sync' : 'fitness_center'}
+        </span>
+        ${cat.category}
+      </h2>
+      ${cat.items.map(item => {
+        const levelClass = item.level.toLowerCase().replace(/\s/g, '');
+        return `
+          <div class="technique-item" onclick="this.classList.toggle('open')">
+            <div class="technique-item-header">
+              <span class="technique-item-name">${item.name}</span>
+              <span class="technique-item-level ${levelClass === 'alllevels' ? 'all' : levelClass}">${item.level}</span>
+            </div>
+            <div class="technique-item-desc">${item.description}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `).join('');
+})();
+</script>

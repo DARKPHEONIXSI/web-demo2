@@ -1,0 +1,94 @@
+<!-- Admin messages.html (Neumorphic) -->
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div class="admin-logo" style="gap: 10px;">
+      <img src="/static/assets/logo.jpg" alt="On Ice" style="height:32px; border-radius:4px; mix-blend-mode: multiply;">
+      <span style="font-weight: 700; letter-spacing: 1px;">ON ICE</span>
+    </div>
+    <nav class="admin-nav">
+      <div class="admin-nav-label">Overview</div>
+      <a href="#/admin/dashboard" class="admin-nav-item"><span class="material-symbols-outlined">dashboard</span> Overview</a>
+      <a href="#/admin/orders" class="admin-nav-item"><span class="material-symbols-outlined">receipt_long</span> Orders</a>
+      <a href="#/admin/marketplace" class="admin-nav-item"><span class="material-symbols-outlined">storefront</span> Store</a>
+      <div class="admin-nav-label">Content</div>
+      <a href="#/admin/posts" class="admin-nav-item"><span class="material-symbols-outlined">article</span> Posts</a>
+      <a href="#/admin/techniques" class="admin-nav-item"><span class="material-symbols-outlined">school</span> Techniques</a>
+      <a href="#/admin/gallery" class="admin-nav-item"><span class="material-symbols-outlined">photo_library</span> Gallery</a>
+      <a href="#/admin/pages" class="admin-nav-item"><span class="material-symbols-outlined">description</span> Pages</a>
+      <a href="#/admin/media" class="admin-nav-item"><span class="material-symbols-outlined">perm_media</span> Media</a>
+      <div class="admin-nav-label">System</div>
+      <a href="#/admin/messages" class="admin-nav-item active"><span class="material-symbols-outlined">mail</span> Inbox</a>
+      <a href="#/admin/users" class="admin-nav-item"><span class="material-symbols-outlined">group</span> Users</a>
+      <a href="#/admin/settings" class="admin-nav-item"><span class="material-symbols-outlined">settings</span> Settings</a>
+      
+      <div style="margin-top:auto;">
+        <a href="#/home" class="admin-nav-item"><span class="material-symbols-outlined">public</span> View Site</a>
+        <a href="#/home" class="admin-nav-item" onclick="showToast('Logged out')"><span class="material-symbols-outlined">logout</span> Logout</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-main">
+    <header class="admin-header">
+      <div class="admin-search-bar">
+        <span class="material-symbols-outlined">search</span>
+        <input type="text" placeholder="Search..." onkeyup="if(window.filterAdmin) filterAdmin(this.value)">
+      </div>
+      
+      <div class="admin-header-actions">
+        <button class="admin-btn-icon" onclick="toggleTheme()" title="Toggle Dark Mode">
+          <span class="material-symbols-outlined">contrast</span>
+        </button>
+
+        <button class="admin-btn-icon" onclick="showToast('No new notifications')">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+        <div class="admin-profile" onclick="navigateTo('admin/settings')">
+          <img src="https://ui-avatars.com/api/?name=Admin+User&background=5a85ff&color=fff" alt="Admin">
+          <span>My Overview</span>
+          <span class="material-symbols-outlined" style="font-size:1rem; color:var(--admin-text-secondary);">expand_more</span>
+        </div>
+      </div>
+    </header>
+
+    <div style="margin-bottom:1.5rem;">
+      <h1 style="font-size:1.8rem; font-weight:700; color:var(--admin-text-primary); text-transform:capitalize;">messages</h1>
+    </div>
+
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+      
+    </div>
+
+    <div class="soft-panel ">
+      <div style="display:flex; flex-direction:column; gap:1.5rem;">
+        <!-- Mock Messages -->
+        <div style="display:flex; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:1.5rem; box-shadow:var(--shadow-sm);">
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; margin-bottom:0.5rem;">
+              <div style="font-size:0.85rem; color:var(--text-secondary); margin-right:1rem;">Just now</div>
+              <span style="color:var(--primary); font-weight:700; font-size:0.75rem;">● NEW</span>
+            </div>
+            <div style="font-size:1.2rem; color:var(--text-primary); margin-bottom:0.5rem;">Coaching Inquiry</div>
+            <div style="font-size:0.9rem; line-height:1.6; color:var(--text-secondary); margin-bottom:1rem;">
+              Hi, I'm interested in private lessons. Do you have availability next week?
+            </div>
+            <div style="font-size:0.85rem; color:var(--text-secondary);">
+              From: <strong style="color:var(--text-primary);">Jane Doe</strong> &lt;<a href="/static/mailto:jane@example.com" style="color:var(--primary);">jane@example.com</a>&gt;
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:0.5rem; margin-left:2rem; flex-shrink:0;">
+            <a href="/static/mailto:jane@example.com" class="soft-btn-outline" style="padding:0.4rem 0.8rem; font-size:0.85rem; text-align:center;">✉ Reply</a>
+            <button class="soft-btn-outline" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="showToast('Marked read')">✓ Read</button>
+            <button class="soft-btn-outline" style="padding:0.4rem 0.8rem; font-size:0.85rem; border-color:var(--accent-error); color:var(--accent-error);" onclick="showToast('Deleted')">✕ Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+  </main>
+</div>
+
+<!-- Try to keep any scripts the page originally had -->
+

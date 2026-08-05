@@ -31,7 +31,7 @@
 
     <div style="margin-top:auto; padding-top:2rem;">
       <a href="{{ url_for('home') }}" style="display:block; padding:0.75rem 1rem; color:var(--on-surface-variant); text-decoration:none; font-weight:500;">← View Blog</a>
-      <a href="{{ url_for('auth.logout') }}" style="display:block; padding:0.75rem 1rem; color:var(--error); text-decoration:none; font-weight:500;">Logout</a>
+      <button id="logoutBtn" type="button" style="display:block; width:100%; padding:0.75rem 1rem; color:var(--error); background:none; border:0; text-align:left; font:inherit; font-weight:500; cursor:pointer;">Logout</button>
     </div>
   </aside>
 
@@ -494,7 +494,8 @@
     {% else %}
     <div style="display:flex; flex-direction:column; gap:1rem;">
       {% for m in messages %}
-      <div id="msg-{{ m.id }}" style="display:flex; align-items:flex-start; background:var(--surface-white); border:1px solid {% if not m['is_read'] %}var(--secondary){% else %}var(--isu-pale){% endif %}; border-radius:var(--radius-lg); padding:1.5rem; box-shadow:var(--shadow-sm);">
+      {% set msg_border = 'var(--secondary)' if not m['is_read'] else 'var(--isu-pale)' %}
+      <div id="msg-{{ m.id }}" style="display:flex; align-items:flex-start; background:var(--surface-white); border:1px solid {{ msg_border }}; border-radius:var(--radius-lg); padding:1.5rem; box-shadow:var(--shadow-sm);">
         <div style="flex:1; min-width:0;">
           <div style="font-size:12px; color:var(--on-surface-variant); margin-bottom:0.25rem;">
             {{ m.created_at }} 
@@ -549,12 +550,12 @@
     <h3 class="headline-md" style="font-size: 24px; margin: 3rem 0 1.5rem;">Social Media API Tokens</h3>
     <div class="form-group">
       <label class="form-label">Facebook Graph API Token</label>
-      <input class="form-input" id="sFbToken" placeholder="EAA..." value="{% for t in social_tokens %}{% if t.platform == 'facebook' %}{{ t.access_token }}{% endif %}{% endfor %}">
+      <input class="form-input" id="sFbToken" placeholder="{% for t in social_tokens %}{% if t.platform == 'facebook' %}Token saved{% endif %}{% endfor %}" value="">
       <p style="font-size: 12px; color:var(--on-surface-variant); margin-top: 0.5rem;">Used to fetch live Facebook feed.</p>
     </div>
     <div class="form-group">
       <label class="form-label">Instagram Basic Display API Token</label>
-      <input class="form-input" id="sIgToken" placeholder="IGQ..." value="{% for t in social_tokens %}{% if t.platform == 'instagram' %}{{ t.access_token }}{% endif %}{% endfor %}">
+      <input class="form-input" id="sIgToken" placeholder="{% for t in social_tokens %}{% if t.platform == 'instagram' %}Token saved{% endif %}{% endfor %}" value="">
       <p style="font-size: 12px; color:var(--on-surface-variant); margin-top: 0.5rem;">Used to fetch live Instagram feed.</p>
     </div>
 
@@ -795,7 +796,7 @@ function togglePin(id){fetch('/api/toggle_pin',{method:'POST',headers:{'Content-
 
 // Technique editor
 </script>
-<script id="techDataJson" type="application/json">{{ techs_json|safe }}</script>
+<script id="techDataJson" type="application/json">{{ techs_json|tojson }}</script>
 <script>
 var techData = JSON.parse(document.getElementById('techDataJson').textContent);
 function openTechModal(){document.getElementById('techModal').style.display='flex';}
@@ -819,7 +820,7 @@ function deleteUser(id,name){if(!confirm('Delete user "'+name+'"?'))return;fetch
 
 // Gallery
 </script>
-<script id="galDataJson" type="application/json">{{ gallery_json|safe }}</script>
+<script id="galDataJson" type="application/json">{{ gallery_json|tojson }}</script>
 <script>
 var galData = JSON.parse(document.getElementById('galDataJson').textContent);
 function openGalModal(){var m=document.getElementById('galModal');if(m)m.style.display='flex';}

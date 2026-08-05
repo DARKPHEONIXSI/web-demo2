@@ -1,0 +1,114 @@
+<!-- Shop Page -->
+<section class="section">
+  <div class="container">
+    <!-- Banner -->
+    <div class="shop-banner glass-card reveal" style="padding:0; overflow:hidden;">
+      <div style="padding:3rem;">
+        <div class="section-label" style="color:var(--accent-aurora);">CURATED RINK GEAR</div>
+        <h1 class="section-title" style="margin-bottom:1rem;">Equipment that supports cleaner practice days.</h1>
+        <p style="color:var(--text-secondary); margin-bottom:1.5rem;">Browse blades, apparel, and essentials chosen for edge control, durability, and confidence from warm-up to final pose.</p>
+        <a href="#/techniques" class="article-card-read-link">Pair gear with technique →</a>
+      </div>
+      <img src="/static/assets/images/pro_ice.png" alt="Skates and training gear on ice" class="shop-banner-img">
+    </div>
+
+    <!-- Filter / Search -->
+    <div class="search-bar reveal">
+      <input class="form-input" type="search" id="shopSearch" placeholder="Search products, SKU, gear...">
+      <select class="form-select" id="shopSort" style="width:auto; min-width:180px;">
+        <option value="newest">Newest</option>
+        <option value="price_asc">Price: Low to High</option>
+        <option value="price_desc">Price: High to Low</option>
+      </select>
+      <button class="btn-primary" onclick="applyShopFilters()">Filter</button>
+    </div>
+
+    <div class="filter-bar reveal" id="categoryFilters">
+      <button class="filter-pill active" onclick="filterShopCategory('all', this)">All Gear</button>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="grid-3" id="productGrid">
+      <!-- Populated by script -->
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  // Build category filters
+  const filterBar = document.getElementById('categoryFilters');
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-pill';
+    btn.textContent = cat;
+    btn.onclick = function() { filterShopCategory(cat, this); };
+    filterBar.appendChild(btn);
+  });
+
+  let currentCategory = 'all';
+
+  function renderProducts(products) {
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = products.map(p => `
+      <div class="product-card shimmer" data-category="${p.category}">
+        <div class="product-card-img-wrap">
+          <img src="/static/${p.image}" alt="${p.name}" class="product-card-img">
+          ${p.badge ? `<div class="product-card-badge">${p.badge}</div>` : ''}
+        </div>
+        <div class="product-card-body">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+            <h3 class="product-card-name">${p.name}</h3>
+            <span class="product-card-price">
+              ${p.sale_price ? `<s>₹${p.base_price.toLocaleString()}</s> ₹${p.sale_price.toLocaleString()}` : `₹${p.base_price.toLocaleString()}`}
+            </span>
+          </div>
+          <p class="product-card-desc">${p.description}</p>
+          <div class="product-card-actions">
+            <button class="btn-add-cart" ${p.stock_quantity <= 0 ? 'disabled' : ''} onclick="handleAddToCart(${p.id}, this)">
+              ${p.stock_quantity <= 0 ? 'Out of Stock' : 'Add to Cart'}
+            </button>
+            <a href="#/product/${p.id}" class="btn-outline">View Details →</a>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.filterShopCategory = function(cat, btn) {
+    document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    currentCategory = cat;
+    applyShopFilters();
+  };
+
+  window.applyShopFilters = function() {
+    const q = document.getElementById('shopSearch').value.toLowerCase();
+    const sort = document.getElementById('shopSort').value;
+    let filtered = [...PRODUCTS];
+    
+    if (currentCategory !== 'all') {
+      filtered = filtered.filter(p => p.category === currentCategory);
+    }
+    if (q) {
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+    }
+    if (sort === 'price_asc') filtered.sort((a,b) => (a.sale_price||a.base_price) - (b.sale_price||b.base_price));
+    if (sort === 'price_desc') filtered.sort((a,b) => (b.sale_price||b.base_price) - (a.sale_price||a.base_price));
+    
+    renderProducts(filtered);
+  };
+
+  window.handleAddToCart = function(productId, btn) {
+    if (addToCart(productId)) {
+      const orig = btn.textContent;
+      btn.textContent = 'Added ✓';
+      btn.style.background = 'var(--accent-aurora)';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+      showToast('Added to cart!');
+    }
+  };
+
+  renderProducts(PRODUCTS);
+})();
+</script>

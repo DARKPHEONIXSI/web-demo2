@@ -35,13 +35,11 @@ def migrate():
         # Delete seed data to avoid UNIQUE constraint on existing IDs
         conn.execute("DELETE FROM posts")
         # author_id will be NULL for existing since it's a new column, which is fine
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO posts (id, title, excerpt, body, author, read_time, pinned, status, post_date, created_at, updated_at)
             SELECT id, title, excerpt, body, author, read_time, pinned, status, post_date, created_at, updated_at
             FROM posts_old
-        """
-        )
+        """)
         conn.execute("DROP TABLE posts_old")
     except Exception as e:
         print("  Error migrating posts:", e)
@@ -49,13 +47,11 @@ def migrate():
     print("Copying data for product_variants...")
     try:
         conn.execute("DELETE FROM product_variants")
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO product_variants (id, product_id, color, size, stock_quantity, price_override)
             SELECT id, product_id, color, size, stock_quantity, price_override
             FROM product_variants_old
-        """
-        )
+        """)
         conn.execute("DROP TABLE product_variants_old")
     except Exception as e:
         print("  Error migrating product_variants:", e)
@@ -64,13 +60,11 @@ def migrate():
     try:
         # Keep existing users, just copy over the fields that exist
         conn.execute("DELETE FROM users")
-        conn.execute(
-            """
+        conn.execute("""
             INSERT INTO users (id, username, password, google_email, is_google, role, jwt_token, jwt_expires_at, created_at)
             SELECT id, username, password, google_email, is_google, role, jwt_token, jwt_expires_at, created_at
             FROM users_old
-        """
-        )
+        """)
         conn.execute("DROP TABLE users_old")
     except Exception as e:
         print("  Error migrating users:", e)

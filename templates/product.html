@@ -52,7 +52,7 @@
             <label class="label-caps" style="display:block; margin-bottom:0.5rem; color:var(--on-surface-variant);">Color</label>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="colorSelector">
               {% for c in colors %}
-              <button class="var-btn filter-pill" onclick="selectColor('{{ c }}')" data-val="{{ c }}">{{ c }}</button>
+              <button class="var-btn filter-pill" type="button" data-color-choice="{{ c }}" data-val="{{ c }}">{{ c }}</button>
               {% endfor %}
             </div>
           </div>
@@ -71,7 +71,7 @@
             <label class="label-caps" style="display:block; margin-bottom:0.5rem; color:var(--on-surface-variant);">Size</label>
             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="sizeSelector">
               {% for s in sizes %}
-              <button class="var-btn filter-pill" onclick="selectSize('{{ s }}')" data-val="{{ s }}">{{ s }}</button>
+              <button class="var-btn filter-pill" type="button" data-size-choice="{{ s }}" data-val="{{ s }}">{{ s }}</button>
               {% endfor %}
             </div>
           </div>
@@ -209,6 +209,13 @@
     selectedSize = s;
     updateUI();
   }
+
+  document.querySelectorAll('[data-color-choice]').forEach(button => {
+    button.addEventListener('click', () => selectColor(button.dataset.colorChoice || ''));
+  });
+  document.querySelectorAll('[data-size-choice]').forEach(button => {
+    button.addEventListener('click', () => selectSize(button.dataset.sizeChoice || ''));
+  });
 
   function addVariantToCart() {
     if (variants.length > 0 && !currentVariant) return;

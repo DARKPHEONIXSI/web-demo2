@@ -11,6 +11,7 @@ class Config:
 
     SECRET_KEY = os.getenv("SECRET_KEY")
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", os.getenv("SECRET_KEY"))
+    FLASK_ENV = os.getenv("FLASK_ENV", "development")
     DATABASE_PATH = os.path.join(BASE_DIR, "simar.db")
     DATABASE_URL = os.getenv("DATABASE_URL")
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
@@ -35,7 +36,7 @@ class Config:
     PER_PAGE = 9
 
     # ── Security: HTTPS, Secure Cookies ──────────────────────
-    SESSION_COOKIE_SECURE = os.getenv("FLASK_ENV") == "production"
+    SESSION_COOKIE_SECURE = FLASK_ENV == "production"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = 1800  # 30 min
@@ -72,14 +73,13 @@ class Config:
     JWT_ALGORITHM = "HS256"
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
     JWT_REFRESH_TOKEN_EXPIRES = 604800  # 7 days
-    JWT_COOKIE_SECURE = os.getenv("FLASK_ENV") == "production"
+    JWT_COOKIE_SECURE = FLASK_ENV == "production"
     JWT_COOKIE_HTTPONLY = True
     JWT_COOKIE_SAMESITE = "Lax"
 
     # Development-only auth shortcut. Never enable in production.
     ALLOW_SIMULATED_GOOGLE_AUTH = (
-        os.getenv("ALLOW_SIMULATED_GOOGLE_AUTH") == "1"
-        and os.getenv("FLASK_ENV") != "production"
+        os.getenv("ALLOW_SIMULATED_GOOGLE_AUTH") == "1" and FLASK_ENV != "production"
     )
 
 
@@ -107,8 +107,18 @@ def validate_config(config):
         "TWILIO_AUTH_TOKEN": "your_twilio_token",
     }
     unsafe = [key for key, value in placeholders.items() if config.get(key) == value]
+    placeholder_markers = ("replace-with-", "replace_", "replace-", "your_")
+    unsafe.extend(
+        key
+        for key, value in config.items()
+        if isinstance(value, str)
+        and any(marker in value for marker in placeholder_markers)
+    )
+    unsafe = sorted(set(unsafe))
     if unsafe:
-        raise RuntimeError("Replace placeholder production config: " + ", ".join(unsafe))
+        raise RuntimeError(
+            "Replace placeholder production config: " + ", ".join(unsafe)
+        )
 
     if not config.get("SESSION_COOKIE_SECURE") or not config.get("JWT_COOKIE_SECURE"):
         raise RuntimeError("Secure cookies must be enabled in production")
@@ -117,4 +127,20 @@ def validate_config(config):
         raise RuntimeError(
             "SQLite production use is blocked. Migrate the database layer before production, "
             "or explicitly set ALLOW_SQLITE_PRODUCTION=1."
+        )
+
+    if config.get("RATELIMIT_STORAGE_URL") == "memory://":
+        raise RuntimeError("Production requires a shared rate-limit store such as Redis.")
+
+    sensitive_paths = [
+        os.path.join(BASE_DIR, ".env"),
+        os.path.join(BASE_DIR, "simar.db"),
+        os.path.join(BASE_DIR, "database_backup.db"),
+        os.path.join(BASE_DIR, "simar_backup2.db"),
+    ]
+    exposed_paths = [path for path in sensitive_paths if os.path.exists(path)]
+    if exposed_paths and os.getenv("ALLOW_APP_ROOT_SECRETS_PRODUCTION") != "1":
+        raise RuntimeError(
+            "Move secrets and database files outside the production app root: "
+            + ", ".join(os.path.basename(path) for path in exposed_paths)
         )

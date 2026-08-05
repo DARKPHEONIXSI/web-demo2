@@ -1,0 +1,122 @@
+<!-- Checkout Page -->
+<section class="section">
+  <div class="container">
+    <div class="page-hero reveal" style="text-align:left; padding:0; margin-bottom:2rem;">
+      <a href="#/shop" class="btn-ghost" style="padding:0; margin-bottom:1rem; display:inline-block;">← Continue Shopping</a>
+      <h1 class="section-title">Checkout</h1>
+    </div>
+
+    <div id="checkoutContent">
+      <!-- Populated by script -->
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  function renderCheckout() {
+    const cart = getCart();
+    const container = document.getElementById('checkoutContent');
+
+    if (cart.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state glass-card">
+          <span class="material-symbols-outlined">shopping_cart</span>
+          <h2 style="font-family:var(--font-display); font-size:1.5rem; margin-bottom:0.5rem;">Your cart is empty</h2>
+          <p>Add some gear from the shop to get started.</p>
+          <a href="#/shop" class="btn-primary" style="margin-top:1.5rem;">Browse the Shop</a>
+        </div>`;
+      return;
+    }
+
+    const subtotal = cart.reduce((s, item) => s + item.price * item.quantity, 0);
+    const shipping = subtotal >= 5000 ? 0 : 299;
+    const tax = Math.round(subtotal * 0.18);
+    const total = subtotal + shipping + tax;
+
+    container.innerHTML = `
+      <div class="checkout-grid">
+        <div>
+          <div class="glass-card reveal">
+            <h2 style="font-family:var(--font-display); font-size:1.3rem; margin-bottom:1.5rem;">Cart Items (${cart.length})</h2>
+            <div id="cartItems">
+              ${cart.map((item, i) => `
+                <div class="cart-item">
+                  <img src="/static/${item.image || "assets/images/pro_ice.png'}" alt="${item.name}" class="cart-item-img">
+                  <div class="cart-item-info">
+                    <div class="cart-item-name">${item.name}</div>
+                    <div class="cart-item-price">₹${item.price.toLocaleString()}</div>
+                  </div>
+                  <button class="cart-item-remove" onclick="removeCartItem(${i})">✕ Remove</button>
+                </div>
+              `).join('')}
+            </div>
+            <button class="btn-ghost" onclick="clearCart(); renderCheckout();" style="margin-top:1rem; color:var(--accent-error); font-size:0.8rem;">Clear entire cart</button>
+          </div>
+
+          <div class="glass-card reveal" style="margin-top:1.5rem;">
+            <h2 style="font-family:var(--font-display); font-size:1.3rem; margin-bottom:1.5rem;">Shipping Address</h2>
+            <div class="form-group">
+              <label class="form-label">Full Name</label>
+              <input class="form-input" placeholder="Riya Sharma" value="Riya Sharma">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Address Line 1</label>
+              <input class="form-input" placeholder="42 Frost Lane" value="42 Frost Lane">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">City</label>
+                <input class="form-input" placeholder="Chandigarh" value="Chandigarh">
+              </div>
+              <div class="form-group">
+                <label class="form-label">PIN Code</label>
+                <input class="form-input" placeholder="160017" value="160017">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card reveal" style="position:sticky; top:calc(var(--nav-height) + 2rem);">
+          <h2 style="font-family:var(--font-display); font-size:1.3rem; margin-bottom:1.5rem;">Order Summary</h2>
+          <div class="cart-summary-row"><span>Subtotal</span><span>₹${subtotal.toLocaleString()}</span></div>
+          <div class="cart-summary-row"><span>Shipping</span><span>${shipping === 0 ? '<span style="color:var(--accent-success);">FREE</span>' : '₹' + shipping}</span></div>
+          <div class="cart-summary-row"><span>Tax (18% GST)</span><span>₹${tax.toLocaleString()}</span></div>
+          <div class="cart-total-row"><span>Total</span><span>₹${total.toLocaleString()}</span></div>
+          ${shipping === 0 ? '<p style="font-size:0.75rem; color:var(--accent-success); margin-top:0.5rem;">🎉 You qualify for free shipping!</p>' : `<p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.5rem;">Free shipping on orders over ₹5,000</p>`}
+          <button class="btn-primary" style="width:100%; margin-top:1.5rem; padding:0.9rem; font-size:1rem; justify-content:center;" onclick="placeOrder()">
+            Place Order — ₹${total.toLocaleString()}
+          </button>
+          <p style="font-size:0.7rem; color:var(--text-muted); text-align:center; margin-top:0.75rem;">Demo mode — no actual payment</p>
+        </div>
+      </div>
+    `;
+  }
+
+  window.removeCartItem = function(index) {
+    removeFromCart(index);
+    renderCheckout();
+    showToast('Item removed from cart');
+  };
+
+  window.placeOrder = function() {
+    clearCart();
+    document.getElementById('checkoutContent').innerHTML = `
+      <div class="glass-card" style="text-align:center; padding:4rem 2rem; max-width:600px; margin:0 auto;">
+        <div style="font-size:4rem; margin-bottom:1rem;">🎉</div>
+        <h2 style="font-family:var(--font-display); font-size:2rem; color:var(--accent-ice); margin-bottom:1rem;">Order Placed!</h2>
+        <p style="color:var(--text-secondary); margin-bottom:0.5rem;">Your order <strong>ORD-2026-004</strong> has been confirmed.</p>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:2rem;">This is a demo — no actual payment was processed.</p>
+        <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+          <a href="#/order/abc123" class="btn-primary">Track Order</a>
+          <a href="#/shop" class="btn-secondary">Continue Shopping</a>
+        </div>
+      </div>
+    `;
+    showToast('Order placed successfully!');
+  };
+
+  renderCheckout();
+  window.renderCheckout = renderCheckout;
+})();
+</script>

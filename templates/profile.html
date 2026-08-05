@@ -95,7 +95,7 @@ if (si) si.addEventListener('click', function() {
 
 var lo = document.getElementById('logoutBtn2');
 if (lo) lo.addEventListener('click', function() {
-  fetch('/auth/logout').then(() => window.location.href = '/');
+  fetch('/auth/logout', { method: 'POST' }).then(() => window.location.href = '/');
 });
 
 var cp = document.getElementById('changePwBtn');

@@ -1,86 +1,122 @@
-"""Migrate all data from SQLite to PostgreSQL."""
-import sqlite3
 import os
-import sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ["DATABASE_URL"] = "postgresql://onice_user:onice_pass_2026@localhost:5432/onice"
+import sqlite3
+from urllib.parse import quote
 
 from app import create_app
 from config import Config
 from models import get_db, init_db
 
-# Read from SQLite
-src = sqlite3.connect("simar.db")
-src.row_factory = sqlite3.Row
+MIGRATION_TABLES = (
+    "settings",
+    "users",
+    "posts",
+    "techniques",
+    "custom_pages",
+    "gallery_items",
+    "contact_messages",
+    "products",
+    "product_variants",
+    "product_images",
+    "media_library",
+    "social_tokens",
+    "orders",
+    "audit_logs",
+    "order_items",
+    "post_comments",
+    "product_reviews",
+    "wishlist_items",
+    "coupons",
+    "return_requests",
+    "cart_items",
+    "analytics_events",
+)
 
-app = create_app()
-with app.app_context():
-    # Ensure PostgreSQL tables exist
-    init_db()
-    pg = get_db()
 
-    def copy_table(table, cols):
-        print(f"Copying {table}...")
-        placeholders = ", ".join(["%s"] * len(cols))
-        col_names = ", ".join(cols)
-        for row in src.execute(f"SELECT {col_names} FROM {table}").fetchall():
-            values = tuple(row[c] for c in cols)
-            try:
-                pg.execute(
-                    f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
-                    values,
-                )
-                pg.commit()
-            except Exception as e:
-                pg.rollback()
-                print(f"  Error on {table}: {e}")
+def postgres_url_from_env() -> str:
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+    required_pg_vars = ("PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD")
+    missing_pg_vars = [name for name in required_pg_vars if not os.getenv(name)]
+    if missing_pg_vars:
+        missing = ", ".join(missing_pg_vars)
+        raise RuntimeError(
+            "Set DATABASE_URL or explicit PostgreSQL environment variables "
+            f"(missing: {missing})."
+        )
+    return (
+        f"postgresql://{quote(os.environ['PGUSER'], safe='')}:"
+        f"{quote(os.environ['PGPASSWORD'], safe='')}@"
+        f"{os.environ['PGHOST']}:{os.environ['PGPORT']}/"
+        f"{quote(os.environ['PGDATABASE'], safe='')}"
+    )
 
-    # Settings
-    copy_table("settings", ["setting_key", "setting_val"])
 
-    # Users
-    copy_table("users", ["id", "username", "password", "is_google", "role",
-                         "jwt_token", "jwt_expires_at", "refresh_token",
-                         "refresh_expires_at", "created_at"])
+def sqlite_table_exists(src: sqlite3.Connection, table: str) -> bool:
+    return (
+        src.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone()
+        is not None
+    )
 
-    # Posts
-    copy_table("posts", ["id", "title", "excerpt", "body", "author", "author_id",
-                         "read_time", "pinned", "status", "post_date",
-                         "created_at", "updated_at"])
 
-    # Techniques
-    copy_table("techniques", ["id", "title", "icon", "excerpt", "body", "sort_order", "created_at"])
+def sqlite_columns(src: sqlite3.Connection, table: str) -> list[str]:
+    return [row[1] for row in src.execute(f"PRAGMA table_info({table})").fetchall()]
 
-    # Custom pages
-    copy_table("custom_pages", ["id", "name", "slug", "body", "created_at", "updated_at"])
 
-    # Gallery items
-    copy_table("gallery_items", ["id", "emoji", "title", "description", "tag", "image_path", "sort_order", "created_at"])
+def postgres_columns(pg, table: str) -> list[str]:
+    rows = pg.execute(
+        """SELECT column_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = ?
+           ORDER BY ordinal_position""",
+        (table,),
+    ).fetchall()
+    return [row[0] for row in rows]
 
-    # Contact messages
-    copy_table("contact_messages", ["name", "email", "subject", "message", "is_read", "created_at"])
 
-    # Products
-    copy_table("products", ["id", "name", "description", "base_price", "created_at", "updated_at"])
+def copy_table(src: sqlite3.Connection, pg, table: str) -> None:
+    if not sqlite_table_exists(src, table):
+        print(f"Skipping {table}: not present in SQLite source.")
+        return
+    src_cols = sqlite_columns(src, table)
+    pg_cols = postgres_columns(pg, table)
+    cols = [col for col in src_cols if col in pg_cols]
+    if not cols:
+        print(f"Skipping {table}: no common columns.")
+        return
 
-    # Product variants
-    copy_table("product_variants", ["id", "product_id", "color", "size", "stock_quantity", "price_override"])
+    print(f"Copying {table}...")
+    placeholders = ", ".join(["%s"] * len(cols))
+    col_names = ", ".join(cols)
+    for row in src.execute(f"SELECT {col_names} FROM {table}").fetchall():
+        values = tuple(row[col] for col in cols)
+        try:
+            pg.execute(
+                f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) ON CONFLICT DO NOTHING",
+                values,
+            )
+            pg.commit()
+        except Exception as e:
+            pg.rollback()
+            print(f"  Error on {table}: {e}")
 
-    # Product images
-    copy_table("product_images", ["id", "product_id", "color_match", "image_url", "sort_order"])
 
-    # Orders
-    copy_table("orders", ["id", "name", "address", "total_amount", "payment_method",
-                          "status", "order_token", "razorpay_payment_id",
-                          "razorpay_order_id", "customer_email",
-                          "customer_phone", "created_at"])
+def main() -> None:
+    Config.DATABASE_URL = postgres_url_from_env()
+    src = sqlite3.connect("simar.db")
+    src.row_factory = sqlite3.Row
+    app = create_app()
+    try:
+        with app.app_context():
+            init_db()
+            pg = get_db()
+            for table in MIGRATION_TABLES:
+                copy_table(src, pg, table)
+    finally:
+        src.close()
+    print("Migration complete!")
 
-    # Audits
-    copy_table("audit_logs", ["id", "event_type", "actor_id", "ip_address", "detail", "created_at"])
 
-    # Order items
-    copy_table("order_items", ["id", "order_id", "product_id", "product_variant_id",
-                                "quantity", "price_at_time"])
-
-print("Migration complete!")
-src.close()
+if __name__ == "__main__":
+    main()

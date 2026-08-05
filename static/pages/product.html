@@ -1,0 +1,128 @@
+<!-- Product Detail Page -->
+<section class="section">
+  <div class="container">
+    <div style="margin-bottom:1.5rem;">
+      <a href="#/shop" class="btn-ghost" style="padding:0;">← Back to Shop</a>
+    </div>
+    <div class="product-detail-grid" id="productDetail">
+      <!-- Populated by script -->
+    </div>
+    <div id="productReviews" class="reveal" style="margin-top:3rem; max-width:760px;">
+      <!-- Reviews populated by script -->
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  const param = window.__routeParam;
+  const productId = parseInt(param) || 1;
+  const product = PRODUCTS.find(p => p.id === productId) || PRODUCTS[0];
+  
+  const detail = document.getElementById('productDetail');
+  detail.innerHTML = `
+    <div class="product-3d-wrap" id="product3DViewer">
+      <img src="/static/${product.image}" alt="${product.name}" style="width:100%; height:100%; object-fit:cover; position:absolute; inset:0; opacity:0.3;">
+      <!-- 3D viewer will be initialized here -->
+    </div>
+    <div>
+      ${product.badge ? `<span class="badge badge-info" style="margin-bottom:0.75rem;">${product.badge}</span>` : ''}
+      <h1 style="font-family:var(--font-display); font-size:2rem; margin-bottom:0.5rem;">${product.name}</h1>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">SKU: ${product.sku}</div>
+      
+      <div style="display:flex; align-items:baseline; gap:1rem; margin-bottom:1rem;">
+        ${product.sale_price 
+          ? `<span style="font-size:2rem; font-weight:700; color:var(--accent-ice);">₹${product.sale_price.toLocaleString()}</span>
+             <s style="font-size:1.1rem; color:var(--text-muted);">₹${product.base_price.toLocaleString()}</s>
+             <span class="badge badge-success">${Math.round((1 - product.sale_price/product.base_price)*100)}% OFF</span>`
+          : `<span style="font-size:2rem; font-weight:700; color:var(--accent-ice);">₹${product.base_price.toLocaleString()}</span>`
+        }
+      </div>
+
+      <p style="color:var(--text-secondary); line-height:1.7; margin-bottom:1.5rem;">${product.description}</p>
+
+      <div style="margin-bottom:0.5rem; font-size:0.85rem; color:${product.stock_quantity > 0 ? 'var(--accent-success)' : 'var(--accent-error)'};">
+        ${product.stock_quantity > 0 ? `✓ In Stock (${product.stock_quantity} available)` : '✗ Out of Stock'}
+      </div>
+
+      ${product.variants.length > 0 ? `
+        <div style="margin:1.5rem 0;">
+          <label class="form-label">Select Option</label>
+          <div class="variant-selector" id="variantSelector">
+            ${product.variants.map((v, i) => `
+              <button class="variant-btn ${i===0?'selected':''}" onclick="selectVariant('${v.id}', this)" data-variant="${v.id}">
+                ${v.label}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="display:flex; gap:1rem; margin-top:1.5rem; flex-wrap:wrap;">
+        <button class="btn-primary" style="padding:0.9rem 2rem; font-size:1rem;" 
+                ${product.stock_quantity <= 0 ? 'disabled style="opacity:0.5;"' : ''}
+                onclick="addProductToCart()">
+          ${product.stock_quantity <= 0 ? 'Out of Stock' : '🛒 Add to Cart'}
+        </button>
+        <button class="btn-secondary" onclick="showToast('Added to wishlist!')">♡ Wishlist</button>
+      </div>
+
+      <div class="glass-card" style="margin-top:2rem; padding:1.5rem;">
+        <div style="display:flex; gap:2rem; flex-wrap:wrap; font-size:0.85rem; color:var(--text-secondary);">
+          <div><span class="material-symbols-outlined" style="font-size:1rem; vertical-align:middle; color:var(--accent-ice);">local_shipping</span> Free shipping over ₹5,000</div>
+          <div><span class="material-symbols-outlined" style="font-size:1rem; vertical-align:middle; color:var(--accent-ice);">verified</span> Authentic guarantee</div>
+          <div><span class="material-symbols-outlined" style="font-size:1rem; vertical-align:middle; color:var(--accent-ice);">refresh</span> 30-day returns</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render reviews
+  const reviewsDiv = document.getElementById('productReviews');
+  if (product.reviews.length > 0) {
+    const avgRating = product.reviews.reduce((s,r) => s + r.rating, 0) / product.reviews.length;
+    reviewsDiv.innerHTML = `
+      <h2 style="font-family:var(--font-display); font-size:1.5rem; margin-bottom:0.5rem;">Customer Reviews</h2>
+      <div style="margin-bottom:1.5rem; color:var(--text-secondary);">
+        <span class="review-stars">${'★'.repeat(Math.round(avgRating))}${'☆'.repeat(5-Math.round(avgRating))}</span>
+        <span style="margin-left:0.5rem;">${avgRating.toFixed(1)} out of 5 (${product.reviews.length} reviews)</span>
+      </div>
+      <div class="review-list">
+        ${product.reviews.map(r => `
+          <div class="review-item">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span class="review-user">${r.user}</span>
+                <span class="review-stars" style="margin-left:0.5rem;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+              </div>
+              <span class="review-date">${new Date(r.date).toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'})}</span>
+            </div>
+            <p class="review-text">${r.text}</p>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else {
+    reviewsDiv.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:2rem;">No reviews yet. Be the first!</p>';
+  }
+
+  // 3D viewer
+  let selectedVariant = product.variants.length > 0 ? product.variants[0].id : null;
+  
+  if (window.init3DProductViewer) {
+    setTimeout(() => window.init3DProductViewer('product3DViewer', 0x00d4ff), 100);
+  }
+
+  window.selectVariant = function(variantId, btn) {
+    selectedVariant = variantId;
+    document.querySelectorAll('.variant-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  };
+
+  window.addProductToCart = function() {
+    if (addToCart(product.id, selectedVariant)) {
+      showToast(`${product.name} added to cart!`);
+    }
+  };
+})();
+</script>

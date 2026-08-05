@@ -1,0 +1,92 @@
+<!-- Contact Page -->
+<section class="section">
+  <div class="contact-grid">
+    <div class="reveal">
+      <div class="section-label" style="color:var(--accent-aurora);">CONTACT & BOOKING</div>
+      <h2 style="font-family:var(--font-display); font-size:2.5rem; margin:0.5rem 0 1.5rem;">Get in Touch</h2>
+      <p style="color:var(--text-secondary); margin-bottom:2rem; line-height:1.7;">
+        Interested in private lessons, have a question about training, or just want to say hello? Fill out the form and I'll get back to you shortly.
+      </p>
+      <div class="glass-card" style="padding:1.5rem;">
+        <p style="margin-bottom:0.5rem;"><strong style="color:var(--accent-ice);">Private Lessons</strong></p>
+        <p style="color:var(--text-secondary); font-size:0.9rem;">Available by appointment at the home rink. All levels welcome, from first-time skaters to competition-level athletes.</p>
+      </div>
+    </div>
+
+    <div class="glass-card reveal" id="contactFormWrap">
+      <div id="contactErr"></div>
+      <div class="form-group">
+        <label class="form-label">Your Name *</label>
+        <input class="form-input" id="cName" placeholder="Jane Smith" autocomplete="name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="cEmail" placeholder="jane@example.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone / WhatsApp</label>
+          <input class="form-input" type="tel" id="cPhone" placeholder="+91 98765 43210" autocomplete="tel">
+        </div>
+      </div>
+      <p style="font-size:0.75rem; color:var(--text-muted); margin-top:-0.5rem; margin-bottom:1rem;">Please provide at least one — email or phone number.</p>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="cSubject" placeholder="e.g. Private lesson enquiry">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message *</label>
+        <textarea class="form-textarea" id="cMessage" placeholder="Tell the coach what you're looking for — your level, goals, preferred days…"></textarea>
+      </div>
+      <div style="display:flex; align-items:center; gap:1rem; margin-top:1.5rem;">
+        <button class="btn-primary" id="contactSendBtn" style="padding:0.75rem 2rem;">Send Message ✉</button>
+        <span style="font-size:0.8rem; color:var(--text-muted);">Usually replies within 24 hours</span>
+      </div>
+    </div>
+
+    <div class="glass-card" id="contactSuccess" style="display:none; text-align:center; padding:4rem 2rem;">
+      <div style="font-size:3rem; margin-bottom:1rem; color:var(--accent-success);">✓</div>
+      <h3 style="font-family:var(--font-display); font-size:1.5rem; color:var(--accent-ice); margin-bottom:0.5rem;">Message Sent!</h3>
+      <p id="successDetail" style="color:var(--text-secondary); margin-bottom:2rem;">Thanks for reaching out. The coach will be in touch soon.</p>
+      <a href="#/home" class="btn-secondary">← Back to Journal</a>
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  function showErr(msg) {
+    var el = document.getElementById('contactErr');
+    el.innerHTML = msg ? '<div class="alert alert-error">' + msg + '</div>' : '';
+  }
+
+  document.getElementById('contactSendBtn').addEventListener('click', function() {
+    var name = document.getElementById('cName').value.trim();
+    var email = document.getElementById('cEmail').value.trim();
+    var phone = document.getElementById('cPhone').value.trim();
+    var message = document.getElementById('cMessage').value.trim();
+
+    if (!name) { showErr('Please enter your name.'); return; }
+    if (!email && !phone) { showErr('Please provide at least your email address or phone number.'); return; }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr("That email address doesn't look right."); return; }
+    if (!message) { showErr('Please enter a message.'); return; }
+
+    var btn = this;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    showErr('');
+
+    // Simulate send
+    setTimeout(function() {
+      document.getElementById('contactFormWrap').style.display = 'none';
+      var how = email && phone ? 'via email or phone' : email ? 'at ' + email : 'on ' + phone;
+      document.getElementById('successDetail').textContent = 'Thanks, ' + name + '! The coach will get back to you ' + how + ' soon.';
+      document.getElementById('contactSuccess').style.display = 'block';
+      showToast('Message sent successfully!');
+    }, 1200);
+  });
+
+  document.getElementById('cMessage')?.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') document.getElementById('contactSendBtn').click();
+  });
+})();
+</script>

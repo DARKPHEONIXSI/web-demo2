@@ -3,14 +3,15 @@ api.py — AJAX data mutation endpoints for the On Ice skating blog.
 Handles all CRUD operations for posts, techniques, gallery, pages, settings, users, messages.
 """
 
-import os
-import mimetypes
-import json
 import hashlib
 import hmac
 import io
+import json
+import mimetypes
+import os
 import urllib.parse
 import urllib.request
+from operator import attrgetter
 
 try:
     import magic
@@ -20,6 +21,7 @@ except ImportError:  # Windows/local installs often lack libmagic bindings.
 import paytmchecksum
 import razorpay
 from flask import Blueprint, current_app, jsonify, request
+from razorpay.errors import SignatureVerificationError
 from werkzeug.utils import secure_filename
 
 try:
@@ -28,9 +30,8 @@ except ImportError:
     Image = None
     ImageOps = None
 
-from auth import admin_required, jwt_required
-from models import gen_id, get_db, save_setting, unique_slug
-from models import log_audit
+from auth import admin_required, current_user, jwt_required
+from models import gen_id, get_db, log_audit, save_setting, unique_slug
 from purify_html import purify_html
 
 api_bp = Blueprint("api", __name__)
@@ -48,6 +49,16 @@ def err(msg: str, status: int = 400, **extra):
     payload = {"ok": False, "msg": msg}
     payload.update(extra)
     return jsonify(payload), status
+
+
+def parse_int_form(name: str, default: int = 0) -> tuple[int | None, str | None]:
+    raw = request.form.get(name)
+    if raw in (None, ""):
+        return default, None
+    try:
+        return int(raw), None
+    except ValueError:
+        return None, f"Invalid {name.replace('_', ' ')} value."
 
 
 def allowed_file(filename: str) -> bool:
@@ -89,7 +100,12 @@ def sanitized_image_bytes(file, ext: str) -> tuple[bytes | None, str | None]:
                 return None, "Unsupported image format."
             if save_ext == "JPEG" and img.mode not in ("RGB", "L"):
                 img = img.convert("RGB")
-            elif save_ext in {"PNG", "WEBP", "GIF"} and img.mode not in ("RGB", "RGBA", "P", "L"):
+            elif save_ext in {"PNG", "WEBP", "GIF"} and img.mode not in (
+                "RGB",
+                "RGBA",
+                "P",
+                "L",
+            ):
                 img = img.convert("RGBA")
             output = io.BytesIO()
             img.save(output, format=save_ext, optimize=True)
@@ -111,6 +127,19 @@ def save_sanitized_image(file, filepath: str, ext: str):
 
 def storage_public_url(object_name: str) -> str:
     return current_app.config["UPLOAD_URL"] + object_name
+
+
+def is_safe_public_asset_path(value: str) -> bool:
+    if not value:
+        return True
+    parsed = urllib.parse.urlparse(value)
+    if parsed.scheme or parsed.netloc or "\\" in value:
+        return False
+    return value.startswith(("/uploads/", "/static/images/")) and ".." not in parsed.path
+
+
+def has_mp4_signature(data: bytes) -> bool:
+    return len(data) >= 12 and data[4:8] == b"ftyp"
 
 
 def save_storage_object(object_name: str, data: bytes, content_type: str) -> str:
@@ -147,7 +176,9 @@ def verify_turnstile() -> str | None:
         {"secret": secret, "response": token, "remoteip": request.remote_addr or ""}
     ).encode("utf-8")
     try:
-        req = urllib.request.Request("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data)
+        req = urllib.request.Request(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data
+        )
         with urllib.request.urlopen(req, timeout=5) as resp:
             result = json.loads(resp.read().decode("utf-8"))
     except Exception:
@@ -194,7 +225,11 @@ def calculate_cart_total(cart_json: str) -> tuple[float, list[dict], str | None]
         if not variant_id and int(product["stock_quantity"] or 0) < quantity:
             return 0.0, [], f"Not enough stock for {product['name']}."
 
-        unit_price = float(product["sale_price"] if product["sale_price"] is not None else product["base_price"] or 0)
+        unit_price = float(
+            product["sale_price"]
+            if product["sale_price"] is not None
+            else product["base_price"] or 0
+        )
         item_name = product["name"]
         if variant_id:
             variant = db.execute(
@@ -247,9 +282,11 @@ def coupon_discount(subtotal: float, code: str = "") -> tuple[float, str | None]
     code = (code or "").strip().upper()
     if not code:
         return 0.0, None
-    coupon = get_db().execute(
-        "SELECT * FROM coupons WHERE code=? AND active=1 LIMIT 1", (code,)
-    ).fetchone()
+    coupon = (
+        get_db()
+        .execute("SELECT * FROM coupons WHERE code=? AND active=1 LIMIT 1", (code,))
+        .fetchone()
+    )
     if not coupon:
         return 0.0, "Coupon is invalid or inactive."
     value = float(coupon["discount_value"] or 0)
@@ -267,7 +304,15 @@ def order_totals(subtotal: float, coupon_code: str = "") -> dict:
     taxable = max(0.0, subtotal - discount)
     tax = round(taxable * 0.18, 2)
     total = round(taxable + shipping + tax, 2)
-    return {"subtotal": round(subtotal, 2), "discount": discount, "shipping": shipping, "tax": tax, "total": total, "coupon_error": coupon_error}
+    return {
+        "subtotal": round(subtotal, 2),
+        "discount": discount,
+        "shipping": shipping,
+        "tax": tax,
+        "total": total,
+        "coupon_error": coupon_error,
+    }
+
 
 # Allowed MIME types for uploads
 ALLOWED_MIME_TYPES = {
@@ -336,17 +381,284 @@ def get_posts_api():
     return jsonify({"ok": True, "posts": [dict(r) for r in rows]})
 
 
+@api_bp.route("/api/get_products")
+def get_products_api():
+    """Return active products with their primary images."""
+    rows = get_db().execute(
+        """SELECT p.*,
+                  (SELECT pi.image_url FROM product_images pi
+                   WHERE pi.product_id=p.id ORDER BY pi.sort_order ASC LIMIT 1) AS image
+           FROM products p WHERE p.status='active' ORDER BY p.created_at DESC"""
+    ).fetchall()
+    return ok(products=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/get_product")
+def get_product_api():
+    """Return one active product with variants, images, and approved reviews."""
+    product_id = (request.args.get("id") or "").strip()
+    db = get_db()
+    product = db.execute(
+        "SELECT * FROM products WHERE id=? AND status='active' LIMIT 1",
+        (product_id,),
+    ).fetchone()
+    if not product:
+        return err("Product not found.", 404)
+    variants = db.execute(
+        """SELECT id, product_id, color, size, stock_quantity, price_override
+           FROM product_variants WHERE product_id=? ORDER BY color, size""",
+        (product_id,),
+    ).fetchall()
+    images = db.execute(
+        """SELECT id, product_id, color_match, image_url, sort_order
+           FROM product_images WHERE product_id=? ORDER BY sort_order ASC""",
+        (product_id,),
+    ).fetchall()
+    reviews = db.execute(
+        """SELECT id, product_id, name, rating, body, created_at
+           FROM product_reviews
+           WHERE product_id=? AND status='approved' ORDER BY created_at DESC""",
+        (product_id,),
+    ).fetchall()
+    return ok(
+        product=dict(product),
+        variants=[dict(row) for row in variants],
+        images=[dict(row) for row in images],
+        reviews=[dict(row) for row in reviews],
+    )
+
+
+@api_bp.route("/api/get_gallery")
+def get_gallery_api():
+    """Return gallery items in display order."""
+    rows = get_db().execute(
+        "SELECT * FROM gallery_items ORDER BY sort_order ASC"
+    ).fetchall()
+    return ok(gallery=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/get_techniques")
+def get_techniques_api():
+    """Return technique guides in display order."""
+    rows = get_db().execute(
+        "SELECT * FROM techniques ORDER BY sort_order ASC"
+    ).fetchall()
+    return ok(techniques=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/get_pages")
+def get_pages_api():
+    """Return custom pages."""
+    rows = get_db().execute(
+        "SELECT * FROM custom_pages ORDER BY created_at ASC"
+    ).fetchall()
+    return ok(pages=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/get_page")
+def get_page_api():
+    """Return one custom page by ID."""
+    page_id = (request.args.get("id") or "").strip()
+    page = get_db().execute(
+        "SELECT * FROM custom_pages WHERE id=? LIMIT 1", (page_id,)
+    ).fetchone()
+    if not page:
+        return err("Page not found.", 404)
+    return ok(page=dict(page))
+
+
+@api_bp.route("/api/profile/orders")
+@jwt_required
+def get_profile_orders_api():
+    """Return recent orders owned by the authenticated user."""
+    rows = get_db().execute(
+        "SELECT * FROM orders WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+        (current_user()["id"],),
+    ).fetchall()
+    return ok(orders=[dict(row) for row in rows])
+
+
+def order_for_current_user(token: str):
+    """Resolve an order token and enforce the SSR owner-or-admin policy."""
+    order = get_db().execute(
+        "SELECT * FROM orders WHERE order_token=? LIMIT 1", (token,)
+    ).fetchone()
+    if not order:
+        return None, err("Order not found.", 404)
+    user = current_user()
+    if user.get("role") != "admin" and user.get("id") != order["user_id"]:
+        return None, err("Order access forbidden.", 403)
+    return order, None
+
+
+@api_bp.route("/api/order/detail")
+@jwt_required
+def get_order_detail_api():
+    """Return an order and tracking item details to its owner or an admin."""
+    order, access_error = order_for_current_user(
+        (request.args.get("token") or "").strip()
+    )
+    if access_error:
+        return access_error
+    assert order is not None
+    items = get_db().execute(
+        """SELECT oi.*, p.name AS product_name, pv.color, pv.size
+           FROM order_items oi
+           LEFT JOIN products p ON p.id=oi.product_id
+           LEFT JOIN product_variants pv ON pv.id=oi.product_variant_id
+           WHERE oi.order_id=?""",
+        (order["id"],),
+    ).fetchall()
+    return ok(order=dict(order), items=[dict(row) for row in items])
+
+
+@api_bp.route("/api/invoice/detail")
+@jwt_required
+def get_invoice_detail_api():
+    """Return invoice data to the order owner or an admin."""
+    order, access_error = order_for_current_user(
+        (request.args.get("token") or "").strip()
+    )
+    if access_error:
+        return access_error
+    assert order is not None
+    items = get_db().execute(
+        """SELECT oi.*, p.name AS product_name
+           FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id
+           WHERE oi.order_id=?""",
+        (order["id"],),
+    ).fetchall()
+    return ok(invoice=dict(order), order=dict(order), items=[dict(row) for row in items])
+
+
+@api_bp.route("/api/admin/dashboard")
+@admin_required
+def get_admin_dashboard_api():
+    """Return aggregate dashboard metrics and low-stock products."""
+    db = get_db()
+    summary = db.execute(
+        """SELECT
+             (SELECT COUNT(*) FROM posts) AS post_count,
+             (SELECT COUNT(*) FROM techniques) AS technique_count,
+             (SELECT COUNT(*) FROM users) AS user_count,
+             (SELECT COUNT(*) FROM custom_pages) AS page_count,
+             (SELECT COUNT(*) FROM gallery_items) AS gallery_count,
+             (SELECT COUNT(*) FROM products) AS product_count,
+             (SELECT COUNT(*) FROM orders) AS order_count,
+             (SELECT COUNT(*) FROM contact_messages WHERE is_read=0) AS unread_count,
+             (SELECT COALESCE(SUM(total_amount), 0) FROM orders
+              WHERE status='completed') AS revenue"""
+    ).fetchone()
+    assert summary is not None
+    low_stock = db.execute(
+        """SELECT id, name, stock_quantity FROM products
+           WHERE status='active' AND stock_quantity <= 5
+           ORDER BY stock_quantity ASC LIMIT 10"""
+    ).fetchall()
+    dashboard = {
+        "post_count": summary["post_count"],
+        "technique_count": summary["technique_count"],
+        "user_count": summary["user_count"],
+        "page_count": summary["page_count"],
+        "gallery_count": summary["gallery_count"],
+        "product_count": summary["product_count"],
+        "order_count": summary["order_count"],
+        "unread_count": summary["unread_count"],
+        "revenue": summary["revenue"],
+        "low_stock": [dict(row) for row in low_stock],
+    }
+    return ok(dashboard=dashboard)
+
+
+@api_bp.route("/api/admin/orders")
+@admin_required
+def get_admin_orders_api():
+    """Return recent orders for administration."""
+    rows = get_db().execute(
+        "SELECT * FROM orders ORDER BY created_at DESC LIMIT 100"
+    ).fetchall()
+    return ok(orders=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/admin/products")
+@admin_required
+def get_admin_products_api():
+    """Return all products with primary images for administration."""
+    rows = get_db().execute(
+        """SELECT p.*,
+                  (SELECT pi.image_url FROM product_images pi
+                   WHERE pi.product_id=p.id ORDER BY pi.sort_order ASC LIMIT 1) AS image
+           FROM products p ORDER BY p.created_at DESC"""
+    ).fetchall()
+    return ok(products=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/admin/posts")
+@admin_required
+def get_admin_posts_api():
+    """Return all posts for administration."""
+    rows = get_db().execute(
+        "SELECT * FROM posts ORDER BY post_date DESC"
+    ).fetchall()
+    return ok(posts=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/admin/messages")
+@admin_required
+def get_admin_messages_api():
+    """Return recent contact messages for administration."""
+    rows = get_db().execute(
+        "SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 50"
+    ).fetchall()
+    return ok(messages=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/admin/users")
+@admin_required
+def get_admin_users_api():
+    """Return non-secret user account fields for administration."""
+    rows = get_db().execute(
+        """SELECT id, username, google_email, is_google, role, created_at
+           FROM users ORDER BY created_at DESC"""
+    ).fetchall()
+    return ok(users=[dict(row) for row in rows])
+
+
+@api_bp.route("/api/admin/media")
+@admin_required
+def get_admin_media_api():
+    """Return media library records for administration."""
+    rows = get_db().execute(
+        "SELECT * FROM media_library ORDER BY uploaded_at DESC"
+    ).fetchall()
+    return ok(media=[dict(row) for row in rows])
+
+
 @api_bp.route("/api/cart/quote", methods=["POST"])
 def cart_quote():
     """Return a server-confirmed quote for the cart."""
-    total_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    total_amount, items, cart_error = calculate_cart_total(
+        request.form.get("cart") or "[]"
+    )
     if cart_error:
-        log_audit("cart.quote_failed", ip_address=request.remote_addr, reason=cart_error)
+        log_audit(
+            "cart.quote_failed", ip_address=request.remote_addr, reason=cart_error
+        )
         return err(cart_error)
     totals = order_totals(total_amount, request.form.get("coupon") or "")
     if totals["coupon_error"]:
         return err(totals["coupon_error"])
-    return jsonify({"ok": True, "subtotal_amount": totals["subtotal"], "discount_amount": totals["discount"], "shipping_amount": totals["shipping"], "tax_amount": totals["tax"], "total_amount": totals["total"], "items": items})
+    return jsonify(
+        {
+            "ok": True,
+            "subtotal_amount": totals["subtotal"],
+            "discount_amount": totals["discount"],
+            "shipping_amount": totals["shipping"],
+            "tax_amount": totals["tax"],
+            "total_amount": totals["total"],
+            "items": items,
+        }
+    )
 
 
 @api_bp.route("/api/comment", methods=["POST"])
@@ -357,7 +669,15 @@ def save_comment():
     if not post_id or not name or not body:
         return err("Name and comment are required.")
     db = get_db()
-    db.execute("INSERT INTO post_comments (post_id, name, body) VALUES (?, ?, ?)", (post_id, name, body))
+    post = db.execute(
+        "SELECT id FROM posts WHERE id=? AND status='published'", (post_id,)
+    ).fetchone()
+    if not post:
+        return err("Post not found.", 404)
+    db.execute(
+        "INSERT INTO post_comments (post_id, name, body) VALUES (?, ?, ?)",
+        (post_id, name, body),
+    )
     db.commit()
     return ok("Comment added.")
 
@@ -374,9 +694,19 @@ def save_review():
     if not product_id:
         return err("Product is required.")
     db = get_db()
-    user = db.execute("SELECT username FROM users WHERE id=?", (request.current_user["id"],)).fetchone()
+    product = db.execute(
+        "SELECT id FROM products WHERE id=? AND status='active'", (product_id,)
+    ).fetchone()
+    if not product:
+        return err("Product not found.", 404)
+    user = db.execute(
+        "SELECT username FROM users WHERE id=?", (current_user()["id"],)
+    ).fetchone()
     name = user["username"] if user else "Member"
-    db.execute("INSERT INTO product_reviews (product_id, user_id, name, rating, body) VALUES (?, ?, ?, ?, ?)", (product_id, request.current_user["id"], name, rating, body))
+    db.execute(
+        "INSERT INTO product_reviews (product_id, user_id, name, rating, body) VALUES (?, ?, ?, ?, ?)",
+        (product_id, current_user()["id"], name, rating, body),
+    )
     db.commit()
     return ok("Review added.")
 
@@ -386,12 +716,26 @@ def save_review():
 def toggle_wishlist():
     product_id = (request.form.get("product_id") or "").strip()
     db = get_db()
-    existing = db.execute("SELECT 1 FROM wishlist_items WHERE user_id=? AND product_id=?", (request.current_user["id"], product_id)).fetchone()
+    product = db.execute(
+        "SELECT id FROM products WHERE id=? AND status='active'", (product_id,)
+    ).fetchone()
+    if not product:
+        return err("Product not found.", 404)
+    existing = db.execute(
+        "SELECT 1 FROM wishlist_items WHERE user_id=? AND product_id=?",
+        (current_user()["id"], product_id),
+    ).fetchone()
     if existing:
-        db.execute("DELETE FROM wishlist_items WHERE user_id=? AND product_id=?", (request.current_user["id"], product_id))
+        db.execute(
+            "DELETE FROM wishlist_items WHERE user_id=? AND product_id=?",
+            (current_user()["id"], product_id),
+        )
         wished = False
     else:
-        db.execute("INSERT OR IGNORE INTO wishlist_items (user_id, product_id) VALUES (?, ?)", (request.current_user["id"], product_id))
+        db.execute(
+            "INSERT OR IGNORE INTO wishlist_items (user_id, product_id) VALUES (?, ?)",
+            (current_user()["id"], product_id),
+        )
         wished = True
     db.commit()
     return ok("Wishlist updated.", wished=wished)
@@ -404,9 +748,17 @@ def save_server_cart():
     if cart_error:
         return err(cart_error)
     db = get_db()
-    db.execute("DELETE FROM cart_items WHERE user_id=?", (request.current_user["id"],))
+    db.execute("DELETE FROM cart_items WHERE user_id=?", (current_user()["id"],))
     for item in items:
-        db.execute("INSERT INTO cart_items (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)", (request.current_user["id"], item["product_id"], item["variant_id"] or "", item["quantity"]))
+        db.execute(
+            "INSERT INTO cart_items (user_id, product_id, variant_id, quantity) VALUES (?, ?, ?, ?)",
+            (
+                current_user()["id"],
+                item["product_id"],
+                item["variant_id"] or "",
+                item["quantity"],
+            ),
+        )
     db.commit()
     return ok("Cart saved.")
 
@@ -414,7 +766,11 @@ def save_server_cart():
 @api_bp.route("/api/cart/load")
 @jwt_required
 def load_server_cart():
-    rows = get_db().execute("SELECT * FROM cart_items WHERE user_id=?", (request.current_user["id"],)).fetchall()
+    rows = (
+        get_db()
+        .execute("SELECT * FROM cart_items WHERE user_id=?", (current_user()["id"],))
+        .fetchall()
+    )
     return jsonify({"ok": True, "cart": [dict(r) for r in rows]})
 
 
@@ -429,33 +785,46 @@ def upload_image():
         return err("No file received.")
 
     file = request.files["image"]
-    if file.filename == "":
+    filename = file.filename or ""
+    if filename == "":
         return err("No file selected.")
 
-    if not allowed_file(file.filename):
+    if not allowed_file(filename):
         return err("Only JPEG, PNG, GIF and WebP images are allowed.")
 
     # MIME type validation
     mime_type = detect_mime(file)
     if mime_type not in ALLOWED_MIME_TYPES or not mime_type.startswith("image/"):
-        return err("Invalid file type. Only JPEG, PNG, GIF and WebP images are allowed.")
+        return err(
+            "Invalid file type. Only JPEG, PNG, GIF and WebP images are allowed."
+        )
 
-    ext = file.filename.rsplit(".", 1)[1].lower()
+    ext = filename.rsplit(".", 1)[1].lower()
     filename = gen_id() + "." + ext
     image_bytes, image_error = sanitized_image_bytes(file, ext)
     if image_error:
-        log_audit("upload.image_rejected", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, reason=image_error)
+        log_audit(
+            "upload.image_rejected",
+            actor_id=current_user().get("id"),
+            ip_address=request.remote_addr,
+            reason=image_error,
+        )
         return err(image_error)
     try:
         url = save_storage_object(filename, image_bytes or b"", mime_type)
     except RuntimeError as e:
         return err(str(e), 502)
-    current_app.logger.info("uploaded image %s by user %s", filename, request.current_user.get("id"))
-    log_audit("upload.image", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, filename=filename)
-
-    return ok(
-        "Uploaded.", path=url, filename=filename
+    current_app.logger.info(
+        "uploaded image %s by user %s", filename, current_user().get("id")
     )
+    log_audit(
+        "upload.image",
+        actor_id=current_user().get("id"),
+        ip_address=request.remote_addr,
+        filename=filename,
+    )
+
+    return ok("Uploaded.", path=url, filename=filename)
 
 
 # ── POSTS ─────────────────────────────────────────────────────
@@ -476,7 +845,10 @@ def save_post():
     seo_title = (request.form.get("seo_title") or "").strip()
     seo_description = (request.form.get("seo_description") or "").strip()
     author = (request.form.get("author") or "The Coach").strip()
-    read_time = max(1, int(request.form.get("read_time") or 4))
+    read_time, read_time_error = parse_int_form("read_time", 4)
+    if read_time_error:
+        return err(read_time_error)
+    read_time = max(1, read_time or 4)
     pinned = 1 if request.form.get("pinned") in ("1", "true", "on") else 0
     status = "draft" if request.form.get("status") == "draft" else "published"
     post_date = (request.form.get("post_date") or "").strip()
@@ -487,11 +859,11 @@ def save_post():
         return err("Body is required.")
     if len(seo_title) > 200 or len(seo_description) > 300:
         return err("SEO title/description are too long.")
+    if not is_safe_public_asset_path(cover_image):
+        return err("Image path must be a local uploaded or static image.")
 
     author_id = (
-        request.current_user.get("id")
-        if request.current_user.get("id") != "admin"
-        else None
+        current_user().get("id") if current_user().get("id") != "admin" else None
     )
 
     db = get_db()
@@ -585,7 +957,9 @@ def save_technique():
     icon = (request.form.get("icon") or "⛸").strip()
     excerpt = (request.form.get("excerpt") or "").strip()
     body = purify_html((request.form.get("body") or "").strip())
-    sort_order = int(request.form.get("sort_order") or 0)
+    sort_order, sort_order_error = parse_int_form("sort_order")
+    if sort_order_error:
+        return err(sort_order_error)
 
     if not title or len(title) > 100:
         return err("Title is required and must be under 100 characters.")
@@ -692,23 +1066,21 @@ def save_settings():
             save_setting(k, val.strip())
 
     db = get_db()
-    fb_token = request.form.get("fb_token")
-    if fb_token is not None:
+    fb_token = (request.form.get("fb_token") or "").strip()
+    if fb_token:
         db.execute("DELETE FROM social_tokens WHERE platform='facebook'")
-        if fb_token.strip():
-            db.execute(
-                "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'facebook', ?)",
-                (gen_id(), fb_token.strip()),
-            )
+        db.execute(
+            "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'facebook', ?)",
+            (gen_id(), fb_token),
+        )
 
-    ig_token = request.form.get("ig_token")
-    if ig_token is not None:
+    ig_token = (request.form.get("ig_token") or "").strip()
+    if ig_token:
         db.execute("DELETE FROM social_tokens WHERE platform='instagram'")
-        if ig_token.strip():
-            db.execute(
-                "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'instagram', ?)",
-                (gen_id(), ig_token.strip()),
-            )
+        db.execute(
+            "INSERT INTO social_tokens (id, platform, access_token) VALUES (?, 'instagram', ?)",
+            (gen_id(), ig_token),
+        )
     db.commit()
 
     return ok("Settings saved.")
@@ -727,10 +1099,14 @@ def save_gallery_item():
     description = (request.form.get("description") or "").strip()
     tag = (request.form.get("tag") or "Training").strip()
     image_path = (request.form.get("image_path") or "").strip()
-    sort_order = int(request.form.get("sort_order") or 0)
+    sort_order, sort_order_error = parse_int_form("sort_order")
+    if sort_order_error:
+        return err(sort_order_error)
 
     if not title:
         return err("Title is required.")
+    if not is_safe_public_asset_path(image_path):
+        return err("Image path must be a local uploaded or static image.")
 
     db = get_db()
     if item_id:
@@ -778,7 +1154,9 @@ def delete_gallery_item():
 @admin_required
 def mark_read():
     """Mark a contact message as read. Admin only."""
-    msg_id = int(request.form.get("id") or 0)
+    msg_id, msg_id_error = parse_int_form("id")
+    if msg_id_error:
+        return err(msg_id_error)
     db = get_db()
     db.execute("UPDATE contact_messages SET is_read=1 WHERE id=?", (msg_id,))
     db.commit()
@@ -789,7 +1167,9 @@ def mark_read():
 @admin_required
 def delete_message():
     """Delete a contact message. Admin only."""
-    msg_id = int(request.form.get("id") or 0)
+    msg_id, msg_id_error = parse_int_form("id")
+    if msg_id_error:
+        return err(msg_id_error)
     db = get_db()
     db.execute("DELETE FROM contact_messages WHERE id=?", (msg_id,))
     db.commit()
@@ -808,6 +1188,16 @@ def delete_user():
         return err("No ID.")
 
     db = get_db()
+    if user_id == current_user().get("id"):
+        return err("You cannot delete your own account.")
+    target = db.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    if target and target["role"] == "admin":
+        admin_count_row = db.execute(
+            "SELECT COUNT(*) FROM users WHERE role='admin'"
+        ).fetchone()
+        admin_count = admin_count_row[0] if admin_count_row else 0
+        if admin_count <= 1:
+            return err("Cannot delete the only admin account.")
     db.execute("DELETE FROM users WHERE id=?", (user_id,))
     db.commit()
     return ok("User deleted.")
@@ -823,11 +1213,12 @@ def upload_media():
     if "media" not in request.files:
         return err("No file received.")
     file = request.files["media"]
-    if file.filename == "":
+    filename = file.filename or ""
+    if filename == "":
         return err("No file selected.")
 
     # Strict extension whitelist
-    safe_name = secure_filename(file.filename)
+    safe_name = secure_filename(filename)
     if "." not in safe_name:
         return err("Invalid file: no extension detected.")
     ext = safe_name.rsplit(".", 1)[1].lower()
@@ -837,18 +1228,27 @@ def upload_media():
     # MIME type validation
     mime_type = detect_mime(file)
     if mime_type not in ALLOWED_MIME_TYPES:
-        return err("Invalid file type. Only JPEG, PNG, GIF, WebP images and MP4 video are allowed.")
+        return err(
+            "Invalid file type. Only JPEG, PNG, GIF, WebP images and MP4 video are allowed."
+        )
 
     filename = gen_id() + "." + ext
     media_type = "video" if ext == "mp4" else "image"
     if media_type == "image":
         data, image_error = sanitized_image_bytes(file, ext)
         if image_error:
-            log_audit("upload.media_rejected", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, reason=image_error)
+            log_audit(
+                "upload.media_rejected",
+                actor_id=current_user().get("id"),
+                ip_address=request.remote_addr,
+                reason=image_error,
+            )
             return err(image_error)
     else:
         file.seek(0)
         data = file.read()
+        if not has_mp4_signature(data):
+            return err("Invalid MP4 file.")
 
     try:
         url = save_storage_object(filename, data or b"", mime_type)
@@ -861,8 +1261,16 @@ def upload_media():
         (media_id, media_type, url),
     )
     db.commit()
-    current_app.logger.info("uploaded media %s by user %s", filename, request.current_user.get("id"))
-    log_audit("upload.media", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, filename=filename, media_type=media_type)
+    current_app.logger.info(
+        "uploaded media %s by user %s", filename, current_user().get("id")
+    )
+    log_audit(
+        "upload.media",
+        actor_id=current_user().get("id"),
+        ip_address=request.remote_addr,
+        filename=filename,
+        media_type=media_type,
+    )
     return ok("Media uploaded.", url=url)
 
 
@@ -871,7 +1279,9 @@ def upload_media():
 def delete_media():
     media_id = request.form.get("id")
     db = get_db()
-    row = db.execute("SELECT url FROM media_library WHERE id=? LIMIT 1", (media_id,)).fetchone()
+    row = db.execute(
+        "SELECT url FROM media_library WHERE id=? LIMIT 1", (media_id,)
+    ).fetchone()
     if row and row["url"]:
         delete_storage_object(row["url"])
     db.execute("DELETE FROM media_library WHERE id=?", (media_id,))
@@ -892,7 +1302,11 @@ def save_product():
     category = (request.form.get("category") or "").strip()
     badge = (request.form.get("badge") or "").strip()
     sku = (request.form.get("sku") or "").strip()
-    status = request.form.get("status") if request.form.get("status") in {"active", "draft", "archived"} else "active"
+    status = (
+        request.form.get("status")
+        if request.form.get("status") in {"active", "draft", "archived"}
+        else "active"
+    )
     seo_title = (request.form.get("seo_title") or "").strip()
     seo_description = (request.form.get("seo_description") or "").strip()
 
@@ -930,7 +1344,20 @@ def save_product():
             """UPDATE products SET name=?, description=?, category=?, badge=?, sku=?, status=?,
                stock_quantity=?, base_price=?, sale_price=?, seo_title=?, seo_description=?, updated_at=datetime('now')
                WHERE id=?""",
-            (name, desc, category, badge, sku, status, stock_quantity, price, sale_price, seo_title, seo_description, pid),
+            (
+                name,
+                desc,
+                category,
+                badge,
+                sku,
+                status,
+                stock_quantity,
+                price,
+                sale_price,
+                seo_title,
+                seo_description,
+                pid,
+            ),
         )
     else:
         pid = gen_id()
@@ -938,7 +1365,20 @@ def save_product():
             """INSERT INTO products (id, name, description, category, badge, sku, status,
                stock_quantity, base_price, sale_price, seo_title, seo_description)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (pid, name, desc, category, badge, sku, status, stock_quantity, price, sale_price, seo_title, seo_description),
+            (
+                pid,
+                name,
+                desc,
+                category,
+                badge,
+                sku,
+                status,
+                stock_quantity,
+                price,
+                sale_price,
+                seo_title,
+                seo_description,
+            ),
         )
     db.commit()
     return ok("Product saved.", id=pid)
@@ -996,8 +1436,10 @@ def delete_variant():
 @admin_required
 def save_prod_image():
     pid = request.form.get("product_id")
-    url = request.form.get("image_url")
+    url = (request.form.get("image_url") or "").strip()
     color = request.form.get("color_match", "")
+    if not is_safe_public_asset_path(url):
+        return err("Image path must be a local uploaded or static image.")
     db = get_db()
     db.execute(
         "INSERT INTO product_images (id, product_id, image_url, color_match) VALUES (?, ?, ?, ?)",
@@ -1025,9 +1467,22 @@ def update_order_status():
     status = request.form.get("status") or "completed"
     fulfillment_status = request.form.get("fulfillment_status") or "pending"
     tracking_number = (request.form.get("tracking_number") or "").strip()
-    if status not in {"pending", "completed", "payment_failed", "cancelled", "refunded"}:
+    if status not in {
+        "pending",
+        "completed",
+        "payment_failed",
+        "cancelled",
+        "refunded",
+    }:
         return err("Invalid payment status.")
-    if fulfillment_status not in {"pending", "packed", "shipped", "delivered", "cancelled", "returned"}:
+    if fulfillment_status not in {
+        "pending",
+        "packed",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "returned",
+    }:
         return err("Invalid fulfillment status.")
     db = get_db()
     db.execute(
@@ -1035,7 +1490,14 @@ def update_order_status():
         (status, fulfillment_status, tracking_number, order_id),
     )
     db.commit()
-    log_audit("order.status_updated", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id, status=status, fulfillment_status=fulfillment_status)
+    log_audit(
+        "order.status_updated",
+        actor_id=current_user().get("id"),
+        ip_address=request.remote_addr,
+        order_id=order_id,
+        status=status,
+        fulfillment_status=fulfillment_status,
+    )
     return ok("Order updated.")
 
 
@@ -1046,9 +1508,13 @@ def update_order_status():
 @jwt_required
 def create_razorpay_order():
     """Create a Razorpay order. Returns order_id and amount in paise."""
-    subtotal_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    subtotal_amount, items, cart_error = calculate_cart_total(
+        request.form.get("cart") or "[]"
+    )
     if cart_error:
-        current_app.logger.warning("cart validation failed during Razorpay create: %s", cart_error)
+        current_app.logger.warning(
+            "cart validation failed during Razorpay create: %s", cart_error
+        )
         return err(cart_error)
     totals = order_totals(subtotal_amount, request.form.get("coupon") or "")
     if totals["coupon_error"]:
@@ -1072,19 +1538,29 @@ def create_razorpay_order():
             "currency": "INR",
             "payment_capture": "1",
             "notes": {
-                "user_id": request.current_user.get("id", "guest"),
+                "user_id": current_user().get("id", "guest"),
                 "item_count": str(sum(item["quantity"] for item in items)),
                 "cart_hash": cart_hash(items),
             },
         }
-        order = client.order.create(data=order_data)
+        order = attrgetter("order")(client).create(data=order_data)
         current_app.logger.info(
             "created Razorpay order %s for user %s amount %s",
             order["id"],
-            request.current_user.get("id", "guest"),
+            current_user().get("id", "guest"),
             amount_paise,
         )
-        return jsonify({"ok": True, "order_id": order["id"], "amount": amount_paise, "subtotal_amount": totals["subtotal"], "shipping_amount": totals["shipping"], "tax_amount": totals["tax"], "total_amount": totals["total"]})
+        return jsonify(
+            {
+                "ok": True,
+                "order_id": order["id"],
+                "amount": amount_paise,
+                "subtotal_amount": totals["subtotal"],
+                "shipping_amount": totals["shipping"],
+                "tax_amount": totals["tax"],
+                "total_amount": totals["total"],
+            }
+        )
     except Exception as e:
         current_app.logger.warning("Razorpay order creation failed: %s", e)
         return err(f"Razorpay error: {str(e)}")
@@ -1099,9 +1575,13 @@ def verify_razorpay():
     email = (request.form.get("email") or "").strip()
     phone = (request.form.get("phone") or "").strip()
 
-    subtotal_amount, items, cart_error = calculate_cart_total(request.form.get("cart") or "[]")
+    subtotal_amount, items, cart_error = calculate_cart_total(
+        request.form.get("cart") or "[]"
+    )
     if cart_error:
-        current_app.logger.warning("cart validation failed during Razorpay verify: %s", cart_error)
+        current_app.logger.warning(
+            "cart validation failed during Razorpay verify: %s", cart_error
+        )
         return err(cart_error)
     totals = order_totals(subtotal_amount, request.form.get("coupon") or "")
     if totals["coupon_error"]:
@@ -1123,40 +1603,66 @@ def verify_razorpay():
     )
 
     try:
-        client.utility.verify_payment_signature(
+        attrgetter("utility")(client).verify_payment_signature(
             {
                 "razorpay_order_id": razorpay_order_id,
                 "razorpay_payment_id": razorpay_payment_id,
                 "razorpay_signature": razorpay_signature,
             }
         )
-    except razorpay.errors.SignatureVerificationError:
-        current_app.logger.warning("invalid Razorpay signature for payment %s", razorpay_payment_id)
+    except SignatureVerificationError:
+        current_app.logger.warning(
+            "invalid Razorpay signature for payment %s", razorpay_payment_id
+        )
         return err("Invalid payment signature")
 
     amount_paise = int(totals["total"] * 100)
     try:
-        payment = client.payment.fetch(razorpay_payment_id)
-        provider_order = client.order.fetch(razorpay_order_id)
+        payment = attrgetter("payment")(client).fetch(razorpay_payment_id)
+        provider_order = attrgetter("order")(client).fetch(razorpay_order_id)
     except Exception as e:
         current_app.logger.warning("Razorpay provider verification failed: %s", e)
         return err("Could not verify payment with Razorpay.")
 
     if payment.get("order_id") != razorpay_order_id:
-        current_app.logger.warning("Razorpay order mismatch for payment %s", razorpay_payment_id)
+        current_app.logger.warning(
+            "Razorpay order mismatch for payment %s", razorpay_payment_id
+        )
         return err("Payment order mismatch.")
-    if int(payment.get("amount") or 0) != amount_paise or payment.get("currency") != "INR":
-        current_app.logger.warning("Razorpay amount mismatch for payment %s", razorpay_payment_id)
+    if (
+        int(payment.get("amount") or 0) != amount_paise
+        or payment.get("currency") != "INR"
+    ):
+        current_app.logger.warning(
+            "Razorpay amount mismatch for payment %s", razorpay_payment_id
+        )
         return err("Payment amount mismatch.")
     if payment.get("status") != "captured":
-        current_app.logger.warning("Razorpay payment not completed: %s", payment.get("status"))
-        log_audit("payment.razorpay_not_captured", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, status=payment.get("status"))
+        current_app.logger.warning(
+            "Razorpay payment not completed: %s", payment.get("status")
+        )
+        log_audit(
+            "payment.razorpay_not_captured",
+            actor_id=current_user().get("id"),
+            ip_address=request.remote_addr,
+            status=payment.get("status"),
+        )
         return err("Payment is not completed.")
     if int(provider_order.get("amount") or 0) != amount_paise:
-        current_app.logger.warning("Razorpay order amount mismatch for order %s", razorpay_order_id)
+        current_app.logger.warning(
+            "Razorpay order amount mismatch for order %s", razorpay_order_id
+        )
         return err("Order amount mismatch.")
-    if (provider_order.get("notes") or {}).get("cart_hash") != cart_hash(items):
-        current_app.logger.warning("Razorpay cart hash mismatch for order %s", razorpay_order_id)
+    provider_notes = provider_order.get("notes") or {}
+    if provider_notes.get("user_id") and provider_notes.get("user_id") != current_user().get("id"):
+        current_app.logger.warning(
+            "Razorpay user mismatch for order %s", razorpay_order_id
+        )
+        return err("Payment user mismatch.")
+    if provider_notes.get("cart_hash") != cart_hash(items):
+        current_app.logger.warning(
+            "Razorpay cart hash mismatch for order %s", razorpay_order_id
+        )
         return err("Cart changed after payment order creation.")
 
     # Idempotency check - prevent duplicate orders for same payment
@@ -1182,7 +1688,7 @@ def verify_razorpay():
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 order_id,
-                request.current_user.get("id"),
+                current_user().get("id"),
                 name,
                 address,
                 totals["total"],
@@ -1234,8 +1740,16 @@ def verify_razorpay():
         current_app.logger.warning("local order creation failed: %s", e)
         return err("Could not create local order. Please contact support.")
 
-    current_app.logger.info("completed order %s for payment %s", order_id, razorpay_payment_id)
-    log_audit("payment.razorpay_completed", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id, payment_id=razorpay_payment_id)
+    current_app.logger.info(
+        "completed order %s for payment %s", order_id, razorpay_payment_id
+    )
+    log_audit(
+        "payment.razorpay_completed",
+        actor_id=current_user().get("id"),
+        ip_address=request.remote_addr,
+        order_id=order_id,
+        payment_id=razorpay_payment_id,
+    )
 
     # Trigger notifications (async in production)
     try:
@@ -1253,12 +1767,18 @@ def verify_razorpay():
 def cancel_order():
     token = (request.form.get("order_token") or "").strip()
     db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE order_token=? AND user_id=?", (token, request.current_user["id"])).fetchone()
+    order = db.execute(
+        "SELECT * FROM orders WHERE order_token=? AND user_id=?",
+        (token, current_user()["id"]),
+    ).fetchone()
     if not order:
         return err("Order not found.", 404)
     if order["fulfillment_status"] not in {"pending", "packed"}:
         return err("This order can no longer be cancelled.")
-    db.execute("UPDATE orders SET status='cancelled', fulfillment_status='cancelled' WHERE id=?", (order["id"],))
+    db.execute(
+        "UPDATE orders SET status='cancelled', fulfillment_status='cancelled' WHERE id=?",
+        (order["id"],),
+    )
     db.commit()
     return ok("Cancellation requested.")
 
@@ -1271,10 +1791,16 @@ def request_return():
     if not reason:
         return err("Return reason is required.")
     db = get_db()
-    order = db.execute("SELECT * FROM orders WHERE order_token=? AND user_id=?", (token, request.current_user["id"])).fetchone()
+    order = db.execute(
+        "SELECT * FROM orders WHERE order_token=? AND user_id=?",
+        (token, current_user()["id"]),
+    ).fetchone()
     if not order:
         return err("Order not found.", 404)
-    db.execute("INSERT INTO return_requests (id, order_id, user_id, reason) VALUES (?, ?, ?, ?)", (gen_id(), order["id"], request.current_user["id"], reason))
+    db.execute(
+        "INSERT INTO return_requests (id, order_id, user_id, reason) VALUES (?, ?, ?, ?)",
+        (gen_id(), order["id"], current_user()["id"], reason),
+    )
     db.commit()
     return ok("Return request submitted.")
 
@@ -1288,9 +1814,17 @@ def refund_order():
     if not order:
         return err("Order not found.", 404)
     # Razorpay refund API can be connected here when live credentials are ready.
-    db.execute("UPDATE orders SET status='refunded', fulfillment_status='returned' WHERE id=?", (order_id,))
+    db.execute(
+        "UPDATE orders SET status='refunded', fulfillment_status='returned' WHERE id=?",
+        (order_id,),
+    )
     db.commit()
-    log_audit("order.refunded", actor_id=request.current_user.get("id"), ip_address=request.remote_addr, order_id=order_id)
+    log_audit(
+        "order.refunded",
+        actor_id=current_user().get("id"),
+        ip_address=request.remote_addr,
+        order_id=order_id,
+    )
     return ok("Order marked refunded.")
 
 
@@ -1310,14 +1844,22 @@ def razorpay_webhook():
 
     payload = request.get_json(silent=True) or {}
     event = payload.get("event", "")
-    payment = (((payload.get("payload") or {}).get("payment") or {}).get("entity") or {})
+    payment = ((payload.get("payload") or {}).get("payment") or {}).get("entity") or {}
     payment_id = payment.get("id")
     if payment_id and event in {"payment.captured", "payment.failed"}:
         status = "completed" if event == "payment.captured" else "payment_failed"
         db = get_db()
-        db.execute("UPDATE orders SET status=? WHERE razorpay_payment_id=?", (status, payment_id))
+        db.execute(
+            "UPDATE orders SET status=? WHERE razorpay_payment_id=?",
+            (status, payment_id),
+        )
         db.commit()
-    log_audit("payment.razorpay_webhook", ip_address=request.remote_addr, event=event, payment_id=payment_id)
+    log_audit(
+        "payment.razorpay_webhook",
+        ip_address=request.remote_addr,
+        event=event,
+        payment_id=payment_id,
+    )
     return ok("Webhook received.")
 
 
@@ -1328,7 +1870,9 @@ def razorpay_webhook():
 @jwt_required
 def create_paytm_order():
     """Create a Paytm order. Returns order_id and txnToken."""
-    return err("Paytm checkout requires merchant credentials and frontend activation.", 501)
+    return err(
+        "Paytm checkout requires merchant credentials and frontend activation.", 501
+    )
 
     try:
         total_amount = float(request.form.get("total_amount") or 0)
@@ -1361,7 +1905,9 @@ def create_paytm_order():
 @jwt_required
 def verify_paytm():
     """Verify Paytm payment with checksum validation and create order."""
-    return err("Paytm checkout requires merchant credentials and frontend activation.", 501)
+    return err(
+        "Paytm checkout requires merchant credentials and frontend activation.", 501
+    )
 
     name = (request.form.get("name") or "").strip()
     address = (request.form.get("address") or "").strip()
@@ -1472,7 +2018,7 @@ def send_order_notifications(
             """,
             )
             mail = Mail(from_email, to_email, subject, content)
-            sg.client.mail.send.post(request_body=mail.get())
+            attrgetter("mail.send.post")(sg.client)(request_body=mail.get())
         except Exception:
             pass  # Log in production
 

@@ -3,14 +3,15 @@ auth.py — Authentication blueprint for the On Ice skating blog.
 Handles login, register, logout, JWT tokens, password change, and auth modals.
 """
 
-from functools import wraps
 import json
 import urllib.parse
 import urllib.request
+from functools import wraps
 
 from flask import (
     Blueprint,
     current_app,
+    g,
     jsonify,
     make_response,
     redirect,
@@ -45,6 +46,10 @@ from models import (
 auth_bp = Blueprint("auth", __name__)
 
 
+def current_user():
+    return g.current_user
+
+
 def verify_turnstile() -> str | None:
     """Verify Cloudflare Turnstile when configured; return an error message if invalid."""
     secret = current_app.config.get("TURNSTILE_SECRET_KEY")
@@ -57,7 +62,9 @@ def verify_turnstile() -> str | None:
         {"secret": secret, "response": token, "remoteip": request.remote_addr or ""}
     ).encode("utf-8")
     try:
-        req = urllib.request.Request("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data)
+        req = urllib.request.Request(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify", data=data
+        )
         with urllib.request.urlopen(req, timeout=5) as resp:
             result = json.loads(resp.read().decode("utf-8"))
     except Exception:
@@ -143,7 +150,7 @@ def jwt_required(f):
             )
 
         # Attach user to request context
-        request.current_user = user
+        g.current_user = user
         return f(*args, **kwargs)
 
     return decorated
@@ -180,7 +187,7 @@ def admin_required(f):
                 403,
             )
 
-        request.current_user = user
+        g.current_user = user
         return f(*args, **kwargs)
 
     return decorated
@@ -253,7 +260,7 @@ def auth_modal():
 @jwt_required
 def logout():
     """Clear tokens and cookies."""
-    user_id = request.current_user["id"]
+    user_id = current_user()["id"]
     clear_tokens(user_id)
 
     response = make_response(jsonify({"ok": True, "msg": "Logged out successfully"}))
@@ -317,7 +324,9 @@ def login():
         set_sess({"role": user["role"], "username": user["username"], "id": user["id"]})
         return response
 
-    current_app.logger.warning("failed login for username %r from %s", username, request.remote_addr)
+    current_app.logger.warning(
+        "failed login for username %r from %s", username, request.remote_addr
+    )
     log_audit("auth.login_failed", ip_address=request.remote_addr, username=username)
     return jsonify({"ok": False, "msg": "Incorrect username or password."}), 401
 
@@ -351,8 +360,14 @@ def register():
         "SELECT id FROM users WHERE username = ? LIMIT 1", (username,)
     ).fetchone()
     if existing:
-        current_app.logger.warning("duplicate registration attempt for username %r from %s", username, request.remote_addr)
-        log_audit("auth.register_duplicate", ip_address=request.remote_addr, username=username)
+        current_app.logger.warning(
+            "duplicate registration attempt for username %r from %s",
+            username,
+            request.remote_addr,
+        )
+        log_audit(
+            "auth.register_duplicate", ip_address=request.remote_addr, username=username
+        )
         return jsonify({"ok": False, "msg": "Username already taken."}), 409
 
     user_id = gen_id()
@@ -362,7 +377,12 @@ def register():
     )
     db.commit()
     current_app.logger.info("registered user %s from %s", user_id, request.remote_addr)
-    log_audit("auth.register_success", actor_id=user_id, ip_address=request.remote_addr, username=username)
+    log_audit(
+        "auth.register_success",
+        actor_id=user_id,
+        ip_address=request.remote_addr,
+        username=username,
+    )
 
     access_token, access_expires = create_access_token(user_id, "user")
     refresh_token, refresh_expires = create_refresh_token(user_id)
@@ -389,8 +409,13 @@ def google_login():
         log_audit("auth.google_not_configured", ip_address=request.remote_addr)
         return jsonify({"ok": False, "msg": "Google sign-in is not configured."}), 501
     if google_id_token is None or google_requests is None:
-        current_app.logger.warning("Google login attempted without google-auth installed")
-        return jsonify({"ok": False, "msg": "Google auth dependency is not installed."}), 501
+        current_app.logger.warning(
+            "Google login attempted without google-auth installed"
+        )
+        return (
+            jsonify({"ok": False, "msg": "Google auth dependency is not installed."}),
+            501,
+        )
     if not credential:
         return jsonify({"ok": False, "msg": "Missing Google credential."}), 400
 
@@ -399,12 +424,16 @@ def google_login():
             credential, google_requests.Request(), client_id
         )
     except ValueError:
-        current_app.logger.warning("invalid Google ID token from %s", request.remote_addr)
+        current_app.logger.warning(
+            "invalid Google ID token from %s", request.remote_addr
+        )
         log_audit("auth.google_invalid", ip_address=request.remote_addr)
         return jsonify({"ok": False, "msg": "Invalid Google sign-in."}), 401
 
     if payload.get("aud") != client_id:
-        current_app.logger.warning("Google token audience mismatch from %s", request.remote_addr)
+        current_app.logger.warning(
+            "Google token audience mismatch from %s", request.remote_addr
+        )
         return jsonify({"ok": False, "msg": "Invalid Google sign-in."}), 401
 
     email = (payload.get("email") or "").strip().lower()
@@ -419,12 +448,19 @@ def google_login():
 
     if not user:
         user_id = gen_id()
-        username_base = "".join(
-            ch for ch in (email.split("@")[0] or "google_user") if ch.isalnum() or ch in "_-"
-        )[:30] or "google_user"
+        username_base = (
+            "".join(
+                ch
+                for ch in (email.split("@")[0] or "google_user")
+                if ch.isalnum() or ch in "_-"
+            )[:30]
+            or "google_user"
+        )
         username = username_base
         suffix = 2
-        while db.execute("SELECT id FROM users WHERE username = ? LIMIT 1", (username,)).fetchone():
+        while db.execute(
+            "SELECT id FROM users WHERE username = ? LIMIT 1", (username,)
+        ).fetchone():
             username = f"{username_base}_{suffix}"
             suffix += 1
         db.execute(
@@ -433,8 +469,15 @@ def google_login():
         )
         db.commit()
         user_data = {"id": user_id, "username": username, "role": "user"}
-        current_app.logger.info("registered Google user %s from %s", user_id, request.remote_addr)
-        log_audit("auth.google_register", actor_id=user_id, ip_address=request.remote_addr, email=email)
+        current_app.logger.info(
+            "registered Google user %s from %s", user_id, request.remote_addr
+        )
+        log_audit(
+            "auth.google_register",
+            actor_id=user_id,
+            ip_address=request.remote_addr,
+            email=email,
+        )
     else:
         user_data = {
             "id": user["id"],
@@ -515,8 +558,8 @@ def me():
         {
             "ok": True,
             "user": {
-                "id": request.current_user["id"],
-                "role": request.current_user["role"],
+                "id": current_user()["id"],
+                "role": current_user()["role"],
             },
         }
     )
@@ -529,7 +572,7 @@ def me():
 @jwt_required
 def change_password():
     """Change password for logged-in non-admin, non-Google users."""
-    if request.current_user.get("role") == "admin":
+    if current_user().get("role") == "admin":
         return jsonify({"ok": False, "msg": "Admins cannot change password here."}), 403
 
     current = request.form.get("current") or ""
@@ -543,14 +586,18 @@ def change_password():
 
     db = get_db()
     user = db.execute(
-        "SELECT password FROM users WHERE id = ? LIMIT 1", (request.current_user["id"],)
+        "SELECT password FROM users WHERE id = ? LIMIT 1", (current_user()["id"],)
     ).fetchone()
     if not user or not check_password_hash(user["password"], current):
         return jsonify({"ok": False, "msg": "Current password is incorrect."}), 401
 
     db.execute(
         "UPDATE users SET password = ? WHERE id = ?",
-        (generate_password_hash(new_pw), request.current_user["id"]),
+        (generate_password_hash(new_pw), current_user()["id"]),
     )
     db.commit()
-    return jsonify({"ok": True, "msg": "Password updated!"})
+    clear_tokens(current_user()["id"])
+    clear_sess()
+    response = make_response(jsonify({"ok": True, "msg": "Password updated!"}))
+    clear_auth_cookies(response)
+    return response

@@ -6,6 +6,12 @@ $CloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/latest/dow
 $CloudflaredExe = "$PSScriptRoot\cloudflared.exe"
 $Port = 5000
 
+if ($env:FLASK_DEBUG -eq "1" -or $env:FLASK_ENV -ne "production") {
+    Write-Host "Refusing to expose a non-production or debug Flask server." -ForegroundColor Red
+    Write-Host "Set FLASK_ENV=production and keep FLASK_DEBUG unset before using a public tunnel." -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "  On Ice - Exposing Website to the Internet  " -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan

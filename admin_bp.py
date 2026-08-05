@@ -3,12 +3,20 @@ admin.py — Admin dashboard blueprint for the On Ice skating blog.
 All routes require admin authentication.
 """
 
-import json
 import csv
 import io
 
 # pyrefly: ignore [missing-import]
-from flask import Blueprint, Response, current_app, make_response, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 # pyrefly: ignore [missing-import]
 from werkzeug.security import check_password_hash
@@ -72,9 +80,10 @@ def admin_index():
         low_stock = db.execute(
             "SELECT id, name, stock_quantity FROM products WHERE status='active' AND stock_quantity <= 5 ORDER BY stock_quantity ASC LIMIT 10"
         ).fetchall()
-        revenue = db.execute(
+        revenue_row = db.execute(
             "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status='completed'"
-        ).fetchone()[0]
+        ).fetchone()
+        revenue = revenue_row[0] if revenue_row else 0
         media_items = db.execute(
             "SELECT * FROM media_library ORDER BY uploaded_at DESC"
         ).fetchall()
@@ -90,9 +99,10 @@ def admin_index():
         messages = db.execute(
             "SELECT * FROM contact_messages ORDER BY created_at DESC LIMIT 50"
         ).fetchall()
-        unread_count = db.execute(
+        unread_count_row = db.execute(
             "SELECT COUNT(*) FROM contact_messages WHERE is_read=0"
-        ).fetchone()[0]
+        ).fetchone()
+        unread_count = unread_count_row[0] if unread_count_row else 0
     except Exception:
         messages = []
         unread_count = 0
@@ -153,8 +163,8 @@ def admin_index():
         edit_product=edit_product,
         product_variants=product_variants,
         product_images=product_images,
-        techs_json=json.dumps(techs_json),
-        gallery_json=json.dumps(gallery_json),
+        techs_json=techs_json,
+        gallery_json=gallery_json,
         post_count=len(posts),
         tech_count=len(techs),
         user_count=len(users),
@@ -184,7 +194,11 @@ def admin_login():
                 access_token, access_expires = create_access_token("admin", "admin")
                 refresh_token, refresh_expires = create_refresh_token("admin")
                 store_tokens(
-                    "admin", access_token, access_expires, refresh_token, refresh_expires
+                    "admin",
+                    access_token,
+                    access_expires,
+                    refresh_token,
+                    refresh_expires,
                 )
                 set_sess({"role": "admin", "username": "Admin", "id": "admin"})
                 response = make_response(redirect(url_for("admin.admin_index")))
@@ -267,7 +281,35 @@ def export_orders_csv():
     rows = db.execute("SELECT * FROM orders ORDER BY created_at DESC").fetchall()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["id", "created_at", "name", "email", "phone", "total", "payment_status", "fulfillment", "tracking"])
+    writer.writerow(
+        [
+            "id",
+            "created_at",
+            "name",
+            "email",
+            "phone",
+            "total",
+            "payment_status",
+            "fulfillment",
+            "tracking",
+        ]
+    )
     for r in rows:
-        writer.writerow([r["id"], r["created_at"], r["name"], r["customer_email"], r["customer_phone"], r["total_amount"], r["status"], r["fulfillment_status"], r["tracking_number"]])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=orders.csv"})
+        writer.writerow(
+            [
+                r["id"],
+                r["created_at"],
+                r["name"],
+                r["customer_email"],
+                r["customer_phone"],
+                r["total_amount"],
+                r["status"],
+                r["fulfillment_status"],
+                r["tracking_number"],
+            ]
+        )
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=orders.csv"},
+    )

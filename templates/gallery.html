@@ -12,21 +12,21 @@
 
     <!-- Filter -->
     <div class="filter-bar">
-      <button class="filter-pill active" onclick="filterGallery('all', this)">All</button>
-      {% for cat in categories %}
-      <button class="filter-pill" onclick="filterGallery('{{ cat }}', this)">{{ cat }}</button>
+      <button class="filter-pill active" type="button" data-gallery-filter="all">All</button>
+      {% for cat in tags %}
+      <button class="filter-pill" type="button" data-gallery-filter="{{ cat }}">{{ cat }}</button>
       {% endfor %}
     </div>
 
     <!-- Gallery Grid -->
     <div class="gallery-grid" id="galleryGrid">
       {% for item in gallery_items %}
-      <div class="gallery-item" data-category="{{ item.category or 'all' }}" onclick="openLightbox({{ loop.index0 }})">
-        <img src="{{ item.image_url }}" alt="{{ item.title }}" class="gallery-item-img"
+      <div class="gallery-item" data-category="{{ item.tag or 'all' }}" onclick="openLightbox({{ loop.index0 }})">
+        <img src="{{ item.image_path }}" alt="{{ item.title }}" class="gallery-item-img"
              onerror="this.style.background='var(--surface-container-low)'; this.style.minHeight='200px';">
         <div class="gallery-item-info">
-          {% if item.category %}
-          <div class="gallery-item-tag">{{ item.category }}</div>
+          {% if item.tag %}
+          <div class="gallery-item-tag">{{ item.tag }}</div>
           {% endif %}
           <div class="gallery-item-title">{{ item.title }}</div>
         </div>
@@ -64,6 +64,9 @@ function filterGallery(cat, btn) {
     }
   });
 }
+document.querySelectorAll('[data-gallery-filter]').forEach(button => {
+  button.addEventListener('click', () => filterGallery(button.dataset.galleryFilter || 'all', button));
+});
 
 function openLightbox(idx) {
   lbIndex = idx;
@@ -85,7 +88,7 @@ function navLightbox(dir) {
 
 function updateLightbox() {
   var item = galleryItems[lbIndex];
-  document.getElementById('lb-img').src = item.image_url;
+  document.getElementById('lb-img').src = item.image_path;
   document.getElementById('lb-caption').textContent = item.title || '';
 }
 

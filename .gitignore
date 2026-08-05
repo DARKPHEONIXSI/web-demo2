@@ -43,6 +43,11 @@ dist/
 build/
 *.egg-info/
 
+# Cloudflare Tunnel binaries (download locally; never commit)
+cloudflared
+cloudflared.exe
+cloudflared-*
+
 # OS
 .DS_Store
 Thumbs.db

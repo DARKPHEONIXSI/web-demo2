@@ -4,7 +4,7 @@ name = "onice"
 version = "1.0.0"
 description = "On Ice skating blog and e-commerce platform"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Coach", email = "coach@onice.com"}
@@ -25,6 +25,12 @@ dependencies = [
     "pyjwt>=2.13",
     "sendgrid>=6.10",
     "twilio>=8.0",
+    "Flask-SQLAlchemy>=3.0",
+    "python-magic>=0.4",
+    "redis>=5.0",
+    "google-auth>=2.37",
+    "Pillow>=12.2",
+    "psycopg[binary]>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -36,8 +42,10 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py310"
 line-length = 88
+
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -53,12 +61,12 @@ ignore = [
     "B904",  # raise inside except handler
 ]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["onice"]
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -76,7 +84,7 @@ exclude = '''
 '''
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -91,6 +99,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests/"]
+pythonpath = ["."]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"

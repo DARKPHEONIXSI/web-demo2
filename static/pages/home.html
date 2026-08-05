@@ -1,0 +1,208 @@
+<!-- Home / Blog Journal Page -->
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <div class="hero-kicker">On Ice Studio / Figure Skating</div>
+      <h1 class="hero-title">Train the edge. Tell the story. Skate with intent.</h1>
+      <p class="hero-subtitle">A premium rink journal for skaters, parents, and coaches who care about technique, artistry, competition prep, and the gear that earns its place in the bag.</p>
+      <div class="hero-actions">
+        <a href="#journal" class="btn-primary" onclick="document.getElementById('journal')?.scrollIntoView({behavior:'smooth'}); return false;">Read the Journal <span aria-hidden="true">→</span></a>
+        <a href="#/shop" class="btn-secondary">Shop Gear</a>
+        <a href="#/contact" class="btn-ghost">Book a lesson</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <img src="/static/assets/images/hero_skating.png" alt="Figure skater performing on a lit ice rink" class="hero-image">
+      <div class="orbit-card orbit-card-top glass-card" style="padding:0.75rem 1rem;">
+        <span class="material-symbols-outlined" aria-hidden="true">article</span>
+        <strong id="heroPostCount">0</strong>
+        <span>published guides</span>
+      </div>
+      <div class="orbit-card orbit-card-mid glass-card" style="padding:0.75rem 1rem;">
+        <span class="material-symbols-outlined" aria-hidden="true">sports</span>
+        <strong id="heroTechCount">0</strong>
+        <span>technique notes</span>
+      </div>
+      <div class="ice-note glass-card" style="padding:0.75rem 1rem; font-size:0.8rem;">
+        Edge drills, competition mindset, rink-tested equipment, and graceful progress.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Bar -->
+<section class="stat-bar">
+  <div class="container stat-grid">
+    <div><strong>6</strong><span>Journal posts</span></div>
+    <div><strong>18</strong><span>Technique guides</span></div>
+    <div><strong>4</strong><span>Skater pathways</span></div>
+    <div><strong>24h</strong><span>Lesson reply target</span></div>
+  </div>
+</section>
+
+<!-- Pathways -->
+<section class="section">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Choose your rink lane</div>
+      <h2 class="section-title">Everything a skater needs between sessions.</h2>
+      <p class="section-subtitle">Move from inspiration to practice to preparation without leaving the site.</p>
+    </div>
+    <div class="pathway-grid">
+      <a class="pathway-card" href="#journal" onclick="document.getElementById('journal')?.scrollIntoView({behavior:'smooth'}); return false;">
+        <span class="material-symbols-outlined">auto_stories</span>
+        <h3>Journal</h3>
+        <p>Field notes on practice structure, confidence, artistry, and competition routines.</p>
+      </a>
+      <a class="pathway-card" href="#/techniques">
+        <span class="material-symbols-outlined">motion_photos_auto</span>
+        <h3>Techniques</h3>
+        <p>Expandable breakdowns for turns, jumps, spins, edges, and off-ice focus.</p>
+      </a>
+      <a class="pathway-card" href="#/shop">
+        <span class="material-symbols-outlined">shopping_bag</span>
+        <h3>Shop</h3>
+        <p>Curated blades, apparel, and rink essentials selected for real training days.</p>
+      </a>
+      <a class="pathway-card" href="#/gallery">
+        <span class="material-symbols-outlined">photo_camera</span>
+        <h3>Gallery</h3>
+        <p>Frozen moments from practice, performance, and the quiet discipline between them.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Feature Section -->
+<section class="section">
+  <div class="container">
+    <div class="feature-card glass-card reveal" style="padding:0;">
+      <div style="padding:3rem;">
+        <div class="section-label">Coach's pick</div>
+        <h2 class="section-title">Build confidence before the music starts.</h2>
+        <p class="section-subtitle">Use the technique library for focused practice, then browse rink-tested gear that supports cleaner edges and calmer preparation.</p>
+        <div style="display:flex; gap:1rem; margin-top:1.5rem; flex-wrap:wrap;">
+          <a href="#/techniques" class="btn-primary">Explore techniques</a>
+          <a href="#/shop" class="btn-secondary">View gear</a>
+        </div>
+      </div>
+      <img src="/static/assets/images/coach_advice.png" alt="Coach giving advice at the rink" class="feature-image">
+    </div>
+  </div>
+</section>
+
+<!-- Journal / Blog Posts -->
+<section id="journal" class="section">
+  <div class="container">
+    <div class="reveal" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+      <div>
+        <div class="section-label">Latest from the journal</div>
+        <h2 class="section-title">Rink notes with a sharper edge.</h2>
+      </div>
+    </div>
+
+    <div class="search-bar reveal">
+      <input class="form-input" type="search" id="blogSearch" placeholder="Search posts..." style="flex:1; min-width:220px;" onkeydown="if(event.key === 'Enter') filterBlogPosts()">
+      <button class="btn-primary" onclick="filterBlogPosts()">Search</button>
+    </div>
+
+    <div class="grid-3" id="blogGrid">
+      <!-- Populated by script -->
+    </div>
+  </div>
+</section>
+
+<section class="cta-footer" id="cta-footer">
+  <div class="cta-footer__content">
+    <div class="cta-footer__kicker">Stay sharp between sessions</div>
+    <h2 class="cta-footer__heading">Make the next skate cleaner.</h2>
+    <p class="cta-footer__sub">Read rink notes, study technique, choose gear that earns its place in the bag, or ask about a lesson plan.</p>
+
+    <div class="cta-footer__actions">
+      <a href="#journal" class="cta-footer__btn-primary" onclick="document.getElementById('journal')?.scrollIntoView({behavior:'smooth'}); return false;">Read Journal</a>
+      <a href="#/techniques" class="cta-footer__btn-secondary">Study Techniques</a>
+      <a href="#/shop" class="cta-footer__btn-secondary">Shop Gear</a>
+      <a href="#/contact" class="cta-footer__btn-text">Book a Lesson</a>
+    </div>
+
+    <div class="cta-footer__panel" aria-label="On Ice site paths">
+      <a href="#journal" onclick="document.getElementById('journal')?.scrollIntoView({behavior:'smooth'}); return false;">
+        <span>Journal</span>
+        <strong>Practice structure, confidence, and competition prep.</strong>
+      </a>
+      <a href="#/techniques">
+        <span>Techniques</span>
+        <strong>Edges, spins, jumps, turns, and off-ice focus.</strong>
+      </a>
+      <a href="#/shop">
+        <span>Gear</span>
+        <strong>Rink-tested essentials for real training days.</strong>
+      </a>
+    </div>
+
+    <div class="cta-footer__footer">
+      <p class="cta-footer__copyright">&copy; 2026 On Ice Studio. All rights reserved.</p>
+      <nav aria-label="Footer links">
+        <ul class="cta-footer__links">
+          <li><a href="#/legal" class="cta-footer__link">Privacy</a></li>
+          <li><a href="#/legal" class="cta-footer__link">Terms</a></li>
+          <li><a href="#/contact" class="cta-footer__link">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+</section>
+
+
+
+
+<script>
+(function() {
+  // Set hero counters
+  document.getElementById('heroPostCount').textContent = POSTS.length + '+';
+  document.getElementById('heroTechCount').textContent = TECHNIQUES.reduce((s,c) => s + c.items.length, 0);
+
+  // Render blog posts
+  function renderPosts(posts) {
+    const grid = document.getElementById('blogGrid');
+    if (!grid) return;
+    grid.innerHTML = posts.map(p => `
+      <article class="article-card shimmer">
+        <a href="#/post/${p.slug}" style="text-decoration:none; color:inherit; display:contents;">
+          <div class="article-card-img-wrap">
+            <img src="/static/${p.cover_image}" class="article-card-img" alt="${p.title}">
+            ${p.category ? `<div class="article-card-tag">${p.category}</div>` : ''}
+          </div>
+          <div class="article-card-body">
+            <div class="article-card-date">${new Date(p.post_date).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })}</div>
+            <h3 class="article-card-title">${p.title}</h3>
+            <p class="article-card-excerpt">${p.excerpt}</p>
+            <div class="article-card-footer">
+              <div class="article-card-author">
+                <div class="article-card-avatar">${p.author[0]}</div>
+                <div style="display:flex; flex-direction:column;">
+                  <span class="article-card-author-name">${p.author}</span>
+                  <span class="article-card-read-time">${p.read_time} min read</span>
+                </div>
+              </div>
+              <span class="article-card-read-link">Read →</span>
+            </div>
+          </div>
+        </a>
+      </article>
+    `).join('');
+  }
+
+  renderPosts(POSTS);
+
+  window.filterBlogPosts = function() {
+    const searchEl = document.getElementById('blogSearch');
+    if (!searchEl) return;
+    const q = searchEl.value.toLowerCase();
+    const filtered = q
+      ? POSTS.filter(p => p.title.toLowerCase().includes(q) || p.excerpt.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
+      : POSTS;
+    renderPosts(filtered);
+  };
+})();
+</script>

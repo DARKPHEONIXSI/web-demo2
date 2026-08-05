@@ -34,9 +34,9 @@
       <button class="gp-btn-primary" type="submit">Filter</button>
     </form>
     <div class="filter-bar">
-      <button class="filter-pill active" onclick="filterProducts('all', this)">All Gear</button>
+      <button class="filter-pill active" type="button" data-category-choice="all">All Gear</button>
       {% for cat in categories %}
-      <button class="filter-pill" onclick="filterProducts('{{ cat }}', this)">{{ cat }}</button>
+      <button class="filter-pill" type="button" data-category-choice="{{ cat }}">{{ cat }}</button>
       {% endfor %}
     </div>
 
@@ -88,6 +88,9 @@ function filterProducts(cat, btn) {
     }
   });
 }
+document.querySelectorAll('[data-category-choice]').forEach(button => {
+  button.addEventListener('click', () => filterProducts(button.dataset.categoryChoice || 'all', button));
+});
 function toggleWishlist(productId) {
   var fd = new URLSearchParams(); fd.set('product_id', productId);
   fetch('/api/wishlist/toggle', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:fd.toString()})

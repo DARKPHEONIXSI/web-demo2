@@ -1,0 +1,433 @@
+/* ═══════════════════════════════════════════════════════════
+   admin-theme.css — Soft UI / Neumorphic Admin Dashboard
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --admin-bg: #f4f7fe;
+  --admin-panel-bg: #ffffff;
+  --admin-panel-white: #ffffff;
+  
+  /* Modern Soft Shadows */
+  --soft-shadow: 0px 10px 30px rgba(112, 144, 176, 0.12);
+  --soft-shadow-hover: 0px 15px 35px rgba(112, 144, 176, 0.18);
+  --soft-shadow-inset: inset 0px 2px 5px rgba(112, 144, 176, 0.15);
+  
+  --admin-text-primary: #3b4256;
+  --admin-text-secondary: #8492a6;
+  --admin-accent-blue: #5a85ff;
+  --admin-accent-red: #ff5a79;
+  --admin-accent-green: #26d07c;
+  
+  --admin-radius-sm: 12px;
+  --admin-radius-md: 20px;
+  --admin-radius-lg: 32px;
+  --admin-radius-pill: 50px;
+}
+
+html[data-theme="dark"] {
+  --admin-bg: #1e1e24;
+  --admin-panel-bg: #1e1e24;
+  --admin-panel-white: #25262c;
+  
+  /* Neumorphic Dark Shadows: Pitch black for dark side, slightly lighter gray for highlight */
+  --soft-shadow: 10px 10px 20px #0b0c0d, -10px -10px 20px #2a2c34;
+  --soft-shadow-hover: 12px 12px 24px #0b0c0d, -12px -12px 24px #2a2c34;
+  --soft-shadow-inset: inset 6px 6px 12px #0b0c0d, inset -6px -6px 12px #2a2c34;
+  
+  --admin-text-primary: #e4e6ea;
+  --admin-text-secondary: #8c909c;
+}
+
+/* Invert the JPG logo for dark mode so it stays visible */
+html[data-theme="dark"] .admin-logo img {
+  filter: invert(1) hue-rotate(180deg) brightness(1.5);
+  mix-blend-mode: screen !important;
+}
+
+/* Force light theme for admin pages regardless of global data-theme */
+body:has(.admin-layout) {
+  background: var(--admin-bg);
+  color: var(--admin-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Hide global public site elements in admin mode */
+body:has(.admin-layout) #mainNav,
+body:has(.admin-layout) #three-canvas,
+body:has(.admin-layout) #scroll-progress,
+body:has(.admin-layout) #loader,
+body:has(.admin-layout) .cursor-dot,
+body:has(.admin-layout) .cursor-ring,
+body:has(.admin-layout) .cursor-trail,
+body:has(.admin-layout) .footer {
+  display: none !important;
+}
+
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--admin-bg);
+  color: var(--admin-text-primary);
+}
+
+/* Sidebar */
+.admin-sidebar {
+  width: 260px;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  background: var(--admin-bg);
+  /* Optional subtle border or shadow separating sidebar */
+  border-right: 2px solid rgba(255,255,255,0.5);
+  z-index: 100;
+}
+
+.admin-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--admin-text-primary);
+  margin-bottom: 3rem;
+  padding-left: 1rem;
+}
+.admin-logo .icon {
+  color: var(--admin-accent-blue);
+}
+
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-nav-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--admin-text-secondary);
+  margin: 1.5rem 0 0.5rem 1rem;
+  font-weight: 600;
+}
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--admin-radius-pill);
+  color: var(--admin-text-secondary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.admin-nav-item:hover {
+  color: var(--admin-text-primary);
+}
+
+.admin-nav-item.active {
+  background: var(--admin-panel-white);
+  color: var(--admin-accent-blue);
+  box-shadow: var(--soft-shadow);
+}
+
+.admin-nav-item.active .material-symbols-outlined {
+  color: var(--admin-accent-blue);
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Main Content */
+.admin-main {
+  flex: 1;
+  margin-left: 260px;
+  padding: 2.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Header */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+}
+
+.admin-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--admin-text-primary);
+}
+
+.admin-search-bar {
+  display: flex;
+  align-items: center;
+  background: var(--admin-panel-white);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--admin-radius-pill);
+  width: 400px;
+  box-shadow: var(--soft-shadow);
+  gap: 10px;
+}
+
+.admin-search-bar input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.95rem;
+  color: var(--admin-text-primary);
+}
+.admin-search-bar input::placeholder {
+  color: var(--admin-text-secondary);
+}
+.admin-search-bar .material-symbols-outlined {
+  color: var(--admin-text-secondary);
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.admin-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--admin-bg);
+  padding: 0.5rem 1rem;
+  border-radius: var(--admin-radius-pill);
+  box-shadow: var(--soft-shadow);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.admin-profile img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.admin-btn-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--admin-bg);
+  box-shadow: var(--soft-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-text-secondary);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.admin-btn-icon:hover {
+  color: var(--admin-accent-blue);
+  box-shadow: var(--soft-shadow-hover);
+}
+.admin-btn-icon:active {
+  box-shadow: var(--soft-shadow-inset);
+}
+
+/* Panels & Neumorphic Cards */
+.soft-panel {
+  background: var(--admin-bg);
+  border-radius: var(--admin-radius-md);
+  padding: 2rem;
+  box-shadow: var(--soft-shadow);
+}
+.soft-panel-white {
+  background: var(--admin-panel-white);
+  border-radius: var(--admin-radius-md);
+  padding: 2rem;
+  box-shadow: var(--soft-shadow);
+}
+
+/* Holographic / Glass Card */
+.holo-card {
+  position: relative;
+  border-radius: var(--admin-radius-md);
+  padding: 2rem;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+.holo-card::before {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%; width: 200%; height: 200%;
+  background: conic-gradient(from 0deg at 50% 50%, #ff8a00, #e52e71, #9c27b0, #03a9f4, #00d2ff, #ff8a00);
+  opacity: 0.15;
+  filter: blur(40px);
+  z-index: -1;
+  animation: rotateHolo 10s linear infinite;
+}
+@keyframes rotateHolo {
+  100% { transform: rotate(360deg); }
+}
+
+/* Stat Widgets */
+.stat-widget {
+  background: var(--admin-bg);
+  border-radius: var(--admin-radius-md);
+  padding: 1.5rem;
+  box-shadow: var(--soft-shadow);
+  display: flex;
+  flex-direction: column;
+}
+.stat-widget .label {
+  color: var(--admin-text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.stat-widget .value {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--admin-text-primary);
+  margin-bottom: 0.5rem;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -1px;
+}
+.stat-widget .trend {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.stat-widget .trend.up { color: var(--admin-accent-green); }
+.stat-widget .trend.down { color: var(--admin-accent-red); }
+
+/* Buttons */
+.soft-btn {
+  background: var(--admin-accent-blue);
+  color: #fff;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: var(--admin-radius-pill);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 8px 15px rgba(90, 133, 255, 0.3);
+  transition: all 0.2s;
+}
+.soft-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px rgba(90, 133, 255, 0.4);
+}
+.soft-btn-outline {
+  background: var(--admin-bg);
+  color: var(--admin-accent-blue);
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: var(--admin-radius-pill);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--soft-shadow);
+  transition: all 0.2s;
+}
+.soft-btn-outline:active {
+  box-shadow: var(--soft-shadow-inset);
+}
+
+/* Chart Mock */
+.chart-container {
+  position: relative;
+  height: 200px;
+  width: 100%;
+}
+.chart-line {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  height: 4px;
+  background: var(--admin-accent-blue);
+  border-radius: 2px;
+  box-shadow: 0 0 15px var(--admin-accent-blue);
+  opacity: 0.5;
+  transform: rotate(-5deg);
+}
+.chart-line-2 {
+  position: absolute;
+  top: 60%;
+  width: 100%;
+  height: 4px;
+  background: #ffb4a2;
+  border-radius: 2px;
+  box-shadow: 0 0 15px #ffb4a2;
+  opacity: 0.7;
+  transform: rotate(2deg);
+}
+.chart-point {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #fff;
+}
+
+/* Soft Table */
+.soft-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.75rem;
+}
+.soft-table th {
+  text-align: left;
+  padding: 0.5rem 1.5rem;
+  color: var(--admin-text-secondary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+.soft-table td {
+  padding: 1rem 1.5rem;
+  background: var(--admin-bg);
+  /* Add individual drop shadows to rows for the neumorphic list effect */
+}
+.soft-table tr {
+  box-shadow: var(--soft-shadow);
+  border-radius: var(--admin-radius-md);
+  transition: transform 0.2s ease;
+}
+.soft-table tr:hover {
+  transform: translateY(-2px);
+}
+.soft-table td:first-child {
+  border-top-left-radius: var(--admin-radius-md);
+  border-bottom-left-radius: var(--admin-radius-md);
+}
+.soft-table td:last-child {
+  border-top-right-radius: var(--admin-radius-md);
+  border-bottom-right-radius: var(--admin-radius-md);
+}
+
+.status-pill {
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--admin-radius-pill);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.status-pill.blue {
+  background: rgba(90,133,255,0.15);
+  color: var(--admin-accent-blue);
+}
+.status-pill.red {
+  background: rgba(255,90,121,0.15);
+  color: var(--admin-accent-red);
+}

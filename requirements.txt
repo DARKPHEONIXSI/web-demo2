@@ -13,7 +13,7 @@ flask-limiter==3.5.0
 sendgrid==6.10.0
 twilio==8.10.0
 Flask-SQLAlchemy==3.0.3
-python-magic==0.4.27
+# python-magic==0.4.27  # Removed: requires libmagic system lib, fallback uses mimetypes
 redis==5.2.0
 google-auth==2.37.0
 Pillow>=12.2.0
